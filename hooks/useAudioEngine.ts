@@ -869,118 +869,115 @@ export function useAudioEngine() {
       const ctx = _sharedCtx;
       if (!ctx || ctx.state === 'closed') return;
 
-        const oscillator = (ctx as any)[`__note_${noteId}`];
-        if (oscillator) {
-          const gainNode = (oscillator as any).__gainNode;
-          const currentTime = ctx.currentTime;
+      const oscillator = (ctx as any)[`__note_${noteId}`];
+      if (oscillator) {
+        const gainNode = (oscillator as any).__gainNode;
+        const currentTime = ctx.currentTime;
 
-          // 短いリリース（0.05秒）で自然に減衰させてから停止
-          const releaseTime = 0.05;
-          const stopTime = currentTime + releaseTime + 0.01;
+        // 短いリリース（0.05秒）で自然に減衰させてから停止
+        const releaseTime = 0.05;
+        const stopTime = currentTime + releaseTime + 0.01;
 
-          if (gainNode) {
-            gainNode.gain.cancelScheduledValues(currentTime);
-            gainNode.gain.setValueAtTime(gainNode.gain.value, currentTime);
-            gainNode.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
-          }
+        if (gainNode) {
+          gainNode.gain.cancelScheduledValues(currentTime);
+          gainNode.gain.setValueAtTime(gainNode.gain.value, currentTime);
+          gainNode.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
+        }
 
-          // オルガンとオルガン2の倍音も短いリリースで停止
-          const harmonic2 = (oscillator as any).__harmonic2;
-          const gain2 = (oscillator as any).__gain2;
-          if (harmonic2 && gain2) {
-            gain2.gain.cancelScheduledValues(currentTime);
-            gain2.gain.setValueAtTime(gain2.gain.value, currentTime);
-            gain2.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
-            try {
-              harmonic2.stop(stopTime);
-            } catch (e) {
-              // 既に停止している場合は無視
-            }
-          }
-
-          const harmonic3 = (oscillator as any).__harmonic3;
-          const gain3 = (oscillator as any).__gain3;
-          if (harmonic3 && gain3) {
-            gain3.gain.cancelScheduledValues(currentTime);
-            gain3.gain.setValueAtTime(gain3.gain.value, currentTime);
-            gain3.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
-            try {
-              harmonic3.stop(stopTime);
-            } catch (e) {
-              // 既に停止している場合は無視
-            }
-          }
-
-          // オルガン2の4倍音も短いリリースで停止
-          const harmonic4 = (oscillator as any).__harmonic4;
-          const gain4 = (oscillator as any).__gain4;
-          if (harmonic4 && gain4) {
-            gain4.gain.cancelScheduledValues(currentTime);
-            gain4.gain.setValueAtTime(gain4.gain.value, currentTime);
-            gain4.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
-            try {
-              harmonic4.stop(stopTime);
-            } catch (e) {
-              // 既に停止している場合は無視
-            }
-          }
-
-          // オルガン2の5倍音も短いリリースで停止
-          const harmonic5 = (oscillator as any).__harmonic5;
-          const gain5 = (oscillator as any).__gain5;
-          if (harmonic5 && gain5) {
-            gain5.gain.cancelScheduledValues(currentTime);
-            gain5.gain.setValueAtTime(gain5.gain.value, currentTime);
-            gain5.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
-            try {
-              harmonic5.stop(stopTime);
-            } catch (e) {
-              // 既に停止している場合は無視
-            }
-          }
-
-          // オルガン2の6倍音も短いリリースで停止
-          const harmonic6 = (oscillator as any).__harmonic6;
-          const gain6 = (oscillator as any).__gain6;
-          if (harmonic6 && gain6) {
-            gain6.gain.cancelScheduledValues(currentTime);
-            gain6.gain.setValueAtTime(gain6.gain.value, currentTime);
-            gain6.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
-            try {
-              harmonic6.stop(stopTime);
-            } catch (e) {
-              // 既に停止している場合は無視
-            }
-          }
-
-          // オルガン2のノイズ成分も短いリリースで停止
-          const noiseSource = (oscillator as any).__noiseSource;
-          const noiseGain = (oscillator as any).__noiseGain;
-          if (noiseSource && noiseGain) {
-            noiseGain.gain.cancelScheduledValues(currentTime);
-            noiseGain.gain.setValueAtTime(noiseGain.gain.value, currentTime);
-            noiseGain.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
-            try {
-              noiseSource.stop(stopTime);
-            } catch (e) {
-              // 既に停止している場合は無視
-            }
-          }
-
-          // リリース後に停止
+        // オルガンとオルガン2の倍音も短いリリースで停止
+        const harmonic2 = (oscillator as any).__harmonic2;
+        const gain2 = (oscillator as any).__gain2;
+        if (harmonic2 && gain2) {
+          gain2.gain.cancelScheduledValues(currentTime);
+          gain2.gain.setValueAtTime(gain2.gain.value, currentTime);
+          gain2.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
           try {
-            oscillator.stop(stopTime);
+            harmonic2.stop(stopTime);
           } catch (e) {
             // 既に停止している場合は無視
           }
-          delete (ctx as any)[`__note_${noteId}`];
-          _sharedActiveNoteCount = Math.max(0, _sharedActiveNoteCount - 1);
         }
-      } else {
-        console.log(`[Audio] stopNote: ${noteId}`);
+
+        const harmonic3 = (oscillator as any).__harmonic3;
+        const gain3 = (oscillator as any).__gain3;
+        if (harmonic3 && gain3) {
+          gain3.gain.cancelScheduledValues(currentTime);
+          gain3.gain.setValueAtTime(gain3.gain.value, currentTime);
+          gain3.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
+          try {
+            harmonic3.stop(stopTime);
+          } catch (e) {
+            // 既に停止している場合は無視
+          }
+        }
+
+        // オルガン2の4倍音も短いリリースで停止
+        const harmonic4 = (oscillator as any).__harmonic4;
+        const gain4 = (oscillator as any).__gain4;
+        if (harmonic4 && gain4) {
+          gain4.gain.cancelScheduledValues(currentTime);
+          gain4.gain.setValueAtTime(gain4.gain.value, currentTime);
+          gain4.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
+          try {
+            harmonic4.stop(stopTime);
+          } catch (e) {
+            // 既に停止している場合は無視
+          }
+        }
+
+        // オルガン2の5倍音も短いリリースで停止
+        const harmonic5 = (oscillator as any).__harmonic5;
+        const gain5 = (oscillator as any).__gain5;
+        if (harmonic5 && gain5) {
+          gain5.gain.cancelScheduledValues(currentTime);
+          gain5.gain.setValueAtTime(gain5.gain.value, currentTime);
+          gain5.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
+          try {
+            harmonic5.stop(stopTime);
+          } catch (e) {
+            // 既に停止している場合は無視
+          }
+        }
+
+        // オルガン2の6倍音も短いリリースで停止
+        const harmonic6 = (oscillator as any).__harmonic6;
+        const gain6 = (oscillator as any).__gain6;
+        if (harmonic6 && gain6) {
+          gain6.gain.cancelScheduledValues(currentTime);
+          gain6.gain.setValueAtTime(gain6.gain.value, currentTime);
+          gain6.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
+          try {
+            harmonic6.stop(stopTime);
+          } catch (e) {
+            // 既に停止している場合は無視
+          }
+        }
+
+        // オルガン2のノイズ成分も短いリリースで停止
+        const noiseSource = (oscillator as any).__noiseSource;
+        const noiseGain = (oscillator as any).__noiseGain;
+        if (noiseSource && noiseGain) {
+          noiseGain.gain.cancelScheduledValues(currentTime);
+          noiseGain.gain.setValueAtTime(noiseGain.gain.value, currentTime);
+          noiseGain.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
+          try {
+            noiseSource.stop(stopTime);
+          } catch (e) {
+            // 既に停止している場合は無視
+          }
+        }
+
+        // リリース後に停止
+        try {
+          oscillator.stop(stopTime);
+        } catch (e) {
+          // 既に停止している場合は無視
+        }
+        delete (ctx as any)[`__note_${noteId}`];
+        _sharedActiveNoteCount = Math.max(0, _sharedActiveNoteCount - 1);
       }
     },
-    [audioState.isAudioSupported]
+    []
   );
 
   /**
