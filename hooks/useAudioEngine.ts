@@ -515,7 +515,9 @@ export function useAudioEngine() {
 
   const startNote = useCallback(
     async (noteId: number, frequency: number, volume: number = 0.3, tone: ToneType = 'organ') => {
-      // AudioContextとマスターGainNodeの状態を確認・修復（初期化が完了していない場合も待機）
+      if (!audioState.isAudioSupported) return;
+
+      // AudioContextとマスターGainNodeの状態を確認・修復
       const isReady = await ensureAudioContextReady();
       if (!isReady) {
         console.warn('[Audio] AudioContext is not ready, skipping note:', noteId);
@@ -523,41 +525,9 @@ export function useAudioEngine() {
       }
 
       const ctx = _sharedCtx;
-      // AudioContextが閉じられている場合は何もしない
-      if (!ctx || ctx.state === 'closed') {
-        console.warn('[Audio] AudioContext is closed, skipping note:', noteId);
-        return;
-      }
-
-      // iOS: suspended状態の場合は確実にresume（ユーザーインタラクション時）
-      if (ctx.state === 'suspended') {
-        try {
-          await ctx.resume();
-          // resume後、状態が変わるまで待機
-          let retries = 0;
-          while (ctx.state === 'suspended' && retries < 10) {
-            await new Promise(resolve => setTimeout(resolve, 10));
-            retries++;
-          }
-          if (ctx.state === 'suspended') {
-            console.warn('[Audio] AudioContext still suspended after resume, skipping note:', noteId);
-            return;
-          }
-        } catch (e) {
-          console.warn('[Audio] Failed to resume AudioContext:', e);
-          return;
-        }
-      }
-
       const masterGain = _sharedMasterGain;
       if (!ctx || !masterGain) {
         console.error('[Audio] AudioContext or masterGain is null after ensureAudioContextReady');
-        return;
-      }
-      
-      // 再度状態をチェック（修復後に閉じられた可能性がある）
-      if (ctx.state === 'closed') {
-        console.warn('[Audio] AudioContext was closed during initialization, skipping note:', noteId);
         return;
       }
 

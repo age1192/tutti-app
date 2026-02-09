@@ -59,7 +59,7 @@ export default function HarmonyScreen() {
     clearActiveNotes,
   } = useHarmonyStore();
 
-  const { startNote, stopNote, stopAllNotes, setNoteVolume, isAudioSupported, ensureAudioContextResumed } = useAudioEngine();
+  const { startNote, stopNote, stopAllNotes, setNoteVolume, isAudioSupported } = useAudioEngine();
   const insets = useSafeAreaInsets();
   const { settings, loadSettings } = useSettingsStore();
   const [isLandscape, setIsLandscape] = useState(false);
@@ -193,45 +193,38 @@ export default function HarmonyScreen() {
 
   // ノートON
   const handleNoteOn = useCallback(
-    async (midiNote: number) => {
-      try {
-        // iOS: ユーザーインタラクション時にAudioContextを確実にresume
-        await ensureAudioContextResumed();
-        
-        // 新しいノートを追加した状態で和音を判定
-        const newActiveNotes = new Set(activeNotes);
-        newActiveNotes.add(midiNote);
-        const notesArray = Array.from(newActiveNotes);
-        
-        // 和音が2音以上ならルート音を判定・更新
-        let rootNote = currentRootNote;
-        if (notesArray.length >= 2) {
-          const detectedRoot = getRootNote(notesArray);
-          if (detectedRoot !== null) {
-            rootNote = detectedRoot;
-            setCurrentRootNote(detectedRoot);
-            
-            // ルート音が変わった場合、既存の音も再計算
-            if (currentRootNote !== detectedRoot && tuning === 'just') {
-              activeNotes.forEach((existingMidi) => {
-                const frequency = calculateFrequencyWithRoot(existingMidi, detectedRoot);
-                stopNote(existingMidi);
-                startNote(existingMidi, frequency, 0.3, tone);
-              });
-            }
+    (midiNote: number) => {
+      // 新しいノートを追加した状態で和音を判定
+      const newActiveNotes = new Set(activeNotes);
+      newActiveNotes.add(midiNote);
+      const notesArray = Array.from(newActiveNotes);
+      
+      // 和音が2音以上ならルート音を判定・更新
+      let rootNote = currentRootNote;
+      if (notesArray.length >= 2) {
+        const detectedRoot = getRootNote(notesArray);
+        if (detectedRoot !== null) {
+          rootNote = detectedRoot;
+          setCurrentRootNote(detectedRoot);
+          
+          // ルート音が変わった場合、既存の音も再計算
+          if (currentRootNote !== detectedRoot && tuning === 'just') {
+            activeNotes.forEach((existingMidi) => {
+              const frequency = calculateFrequencyWithRoot(existingMidi, detectedRoot);
+              stopNote(existingMidi);
+              startNote(existingMidi, frequency, 0.3, tone);
+            });
           }
         }
-        
-        // 新しい音の周波数を計算
-        const frequency = calculateFrequencyWithRoot(midiNote, rootNote);
-        
-        await startNote(midiNote, frequency, 0.3, tone);
-        addActiveNote(midiNote);
-      } catch (error) {
-        console.error('[Harmony] Error in handleNoteOn:', error);
       }
+      
+      // 新しい音の周波数を計算
+      const frequency = calculateFrequencyWithRoot(midiNote, rootNote);
+      
+      startNote(midiNote, frequency, 0.3, tone);
+      addActiveNote(midiNote);
     },
-    [activeNotes, currentRootNote, tuning, calculateFrequencyWithRoot, startNote, stopNote, addActiveNote, ensureAudioContextResumed]
+    [activeNotes, currentRootNote, tuning, calculateFrequencyWithRoot, startNote, stopNote, addActiveNote]
   );
 
   // ノートOFF
