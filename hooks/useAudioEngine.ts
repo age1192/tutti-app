@@ -519,13 +519,19 @@ export function useAudioEngine() {
     // AudioContextがsuspendedの場合は再開（iOSで重要）
     if (ctx.state === 'suspended') {
       try {
+        console.log('[Audio] Resuming suspended AudioContext...');
         await ctx.resume();
-        // resume後、少し待ってから状態を確認
-        await new Promise(resolve => setTimeout(resolve, 10));
+        // resume後、状態がrunningになるまで最大100ms待機
+        let retries = 0;
+        while (ctx.state === 'suspended' && retries < 10) {
+          await new Promise(resolve => setTimeout(resolve, 10));
+          retries++;
+        }
         if (ctx.state === 'suspended') {
-          console.warn('[Audio] AudioContext still suspended after resume');
+          console.warn('[Audio] AudioContext still suspended after resume, state:', ctx.state);
           return false;
         }
+        console.log('[Audio] AudioContext resumed successfully, state:', ctx.state);
       } catch (e) {
         console.warn('[Audio] Failed to resume AudioContext:', e);
         return false;
@@ -550,6 +556,34 @@ export function useAudioEngine() {
       const masterGain = _sharedMasterGain;
       if (!ctx || !masterGain) {
         console.error('[Audio] AudioContext or masterGain is null after ensureAudioContextReady');
+        return;
+      }
+
+      // iOS: suspended状態の場合は確実にresume（ユーザーインタラクション時）
+      if (ctx.state === 'suspended') {
+        try {
+          console.log('[Audio] startNote: Resuming suspended AudioContext before playing note:', noteId);
+          await ctx.resume();
+          // resume後、状態がrunningになるまで最大100ms待機
+          let retries = 0;
+          while (ctx.state === 'suspended' && retries < 10) {
+            await new Promise(resolve => setTimeout(resolve, 10));
+            retries++;
+          }
+          if (ctx.state === 'suspended') {
+            console.warn('[Audio] AudioContext still suspended after resume in startNote, skipping note:', noteId);
+            return;
+          }
+          console.log('[Audio] AudioContext resumed in startNote, state:', ctx.state);
+        } catch (e) {
+          console.warn('[Audio] Failed to resume AudioContext in startNote:', e);
+          return;
+        }
+      }
+
+      // 再度状態をチェック
+      if (ctx.state !== 'running') {
+        console.warn('[Audio] AudioContext is not running, state:', ctx.state, 'skipping note:', noteId);
         return;
       }
 
