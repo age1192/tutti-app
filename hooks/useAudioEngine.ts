@@ -218,14 +218,12 @@ export function useAudioEngine() {
    * トーンを再生（AudioContext使用）
    */
   const playToneInternal = useCallback(
-    (frequency: number, duration: number, volume: number = 0.5) => {
-      const ctx = _sharedCtx;
-      if (!ctx) return;
+    async (frequency: number, duration: number, volume: number = 0.5) => {
+      const isReady = await ensureAudioContextReady();
+      if (!isReady) return;
 
-      // バックグラウンドから復帰時など、suspended の場合は再開
-      if (ctx.state === 'suspended') {
-        ctx.resume().catch(() => {});
-      }
+      const ctx = _sharedCtx;
+      if (!ctx || ctx.state === 'closed') return;
 
       const currentTime = ctx.currentTime;
 
@@ -255,7 +253,7 @@ export function useAudioEngine() {
       oscillator.start(currentTime);
       oscillator.stop(endTime + release);
     },
-    []
+    [ensureAudioContextReady]
   );
 
   /**
@@ -263,15 +261,9 @@ export function useAudioEngine() {
    */
   const playTone = useCallback(
     (frequency: number, duration: number, volume: number = 0.5) => {
-      if (audioState.isAudioSupported) {
-        playToneInternal(frequency, duration, volume);
-      } else {
-        // ネイティブ環境では音声ファイルが必要
-        // 現在は視覚的フィードバックのみ
-        console.log(`[Audio] playTone: ${frequency}Hz, ${duration}ms (AudioContext not available)`);
-      }
+      playToneInternal(frequency, duration, volume);
     },
-    [audioState.isAudioSupported, playToneInternal]
+    [playToneInternal]
   );
 
   /**
@@ -279,15 +271,12 @@ export function useAudioEngine() {
    * 音色によって周波数とエンベロープを変える
    */
   const playClick = useCallback(
-    (isAccent: boolean = false, volume: number = 0.7, tone: MetronomeToneType = 'default') => {
-      if (audioState.isAudioSupported) {
-        const ctx = _sharedCtx;
-        if (!ctx) return;
+    async (isAccent: boolean = false, volume: number = 0.7, tone: MetronomeToneType = 'default') => {
+      const isReady = await ensureAudioContextReady();
+      if (!isReady) return;
 
-        // バックグラウンドから復帰時など、suspended の場合は再開（メトロノーム音が鳴るように）
-        if (ctx.state === 'suspended') {
-          ctx.resume().catch(() => {});
-        }
+      const ctx = _sharedCtx;
+      if (!ctx || ctx.state === 'closed') return;
 
         const currentTime = ctx.currentTime;
         const oscillator = ctx.createOscillator();
@@ -359,11 +348,8 @@ export function useAudioEngine() {
 
         oscillator.start(currentTime);
         oscillator.stop(currentTime + duration + 0.01);
-      } else {
-        console.log(`[Audio] playClick: ${isAccent ? 'accent' : 'normal'}, tone: ${tone} (AudioContext not available)`);
-      }
     },
-    [audioState.isAudioSupported]
+    [ensureAudioContextReady]
   );
 
   /**
@@ -374,7 +360,13 @@ export function useAudioEngine() {
    * @param tone - メトロノーム音色
    */
   const playSubdivisionClick = useCallback(
-    (subdivisionType: string, isFirstOfBeat: boolean, volume: number = 0.5, tone: MetronomeToneType = 'default') => {
+    async (subdivisionType: string, isFirstOfBeat: boolean, volume: number = 0.5, tone: MetronomeToneType = 'default') => {
+      const isReady = await ensureAudioContextReady();
+      if (!isReady) return;
+
+      const ctx = _sharedCtx;
+      if (!ctx || ctx.state === 'closed') return;
+
       // 分割タイプごとに異なる周波数を設定
       // 8th: 600Hz, triplet: 500Hz, 16th: 400Hz
       let frequency: number;
@@ -398,11 +390,7 @@ export function useAudioEngine() {
           duration = 0.03;
       }
 
-      if (audioState.isAudioSupported) {
-        const ctx = _sharedCtx;
-        if (!ctx) return;
-
-        const currentTime = ctx.currentTime;
+      const currentTime = ctx.currentTime;
         const oscillator = ctx.createOscillator();
         const gainNode = ctx.createGain();
         gainNode.gain.value = 0;
@@ -446,11 +434,8 @@ export function useAudioEngine() {
 
         oscillator.start(currentTime);
         oscillator.stop(currentTime + duration + 0.01);
-      } else {
-        console.log(`[Audio] playSubdivisionClick: ${subdivisionType}, tone: ${tone} (AudioContext not available)`);
-      }
     },
-    [audioState.isAudioSupported]
+    [ensureAudioContextReady]
   );
 
   /**
@@ -459,6 +444,16 @@ export function useAudioEngine() {
    */
   // AudioContextとマスターGainNodeの状態を確認・修復する関数
   const ensureAudioContextReady = useCallback(async (): Promise<boolean> => {
+    // 初期化中の場合は完了を待つ
+    if (_isInitializing && _initPromise) {
+      try {
+        await _initPromise;
+      } catch (e) {
+        console.warn('[Audio] Initialization failed:', e);
+        return false;
+      }
+    }
+
     const ctx = _sharedCtx;
 
     // AudioContextが存在しない、またはclosedの場合は何もしない
@@ -495,19 +490,17 @@ export function useAudioEngine() {
 
   const startNote = useCallback(
     async (noteId: number, frequency: number, volume: number = 0.3, tone: ToneType = 'organ') => {
-      if (!audioState.isAudioSupported) return;
+      // AudioContextとマスターGainNodeの状態を確認・修復（初期化が完了していない場合も待機）
+      const isReady = await ensureAudioContextReady();
+      if (!isReady) {
+        console.warn('[Audio] AudioContext is not ready, skipping note:', noteId);
+        return;
+      }
 
       const ctx = _sharedCtx;
       // AudioContextが閉じられている場合は何もしない
       if (!ctx || ctx.state === 'closed') {
         console.warn('[Audio] AudioContext is closed, skipping note:', noteId);
-        return;
-      }
-
-      // AudioContextとマスターGainNodeの状態を確認・修復
-      const isReady = await ensureAudioContextReady();
-      if (!isReady) {
-        console.warn('[Audio] AudioContext is not ready, skipping note:', noteId);
         return;
       }
 
@@ -821,7 +814,7 @@ export function useAudioEngine() {
         // エラーが発生しても他の音に影響を与えないようにする
       }
     },
-    [audioState.isAudioSupported, ensureAudioContextReady, stopNote]
+    [ensureAudioContextReady, stopNote]
   );
 
   /**
@@ -873,9 +866,8 @@ export function useAudioEngine() {
    */
   const stopNote = useCallback(
     (noteId: number) => {
-      if (audioState.isAudioSupported) {
-        const ctx = _sharedCtx;
-        if (!ctx) return;
+      const ctx = _sharedCtx;
+      if (!ctx || ctx.state === 'closed') return;
 
         const oscillator = (ctx as any)[`__note_${noteId}`];
         if (oscillator) {
@@ -995,16 +987,10 @@ export function useAudioEngine() {
    * すべての音を停止（安全な実装）
    */
   const stopAllNotes = useCallback(() => {
-    if (!audioState.isAudioSupported) return;
-    
     const ctx = _sharedCtx;
-    if (!ctx) return;
+    if (!ctx || ctx.state === 'closed') return;
 
     try {
-      // AudioContextが既に閉じられている場合は何もしない
-      if (ctx.state === 'closed') {
-        return;
-      }
 
       // __note_ で始まるすべてのプロパティを削除
       const noteKeys = Object.keys(ctx).filter(key => key.startsWith('__note_'));
@@ -1035,7 +1021,7 @@ export function useAudioEngine() {
     } catch (err) {
       console.error('[Audio] Error in stopAllNotes:', err);
     }
-  }, [audioState.isAudioSupported]);
+  }, []);
 
   /**
    * 現在の時間を取得

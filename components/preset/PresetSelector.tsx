@@ -142,7 +142,7 @@ export function PresetSelector({ type, screenWidth = 800 }: PresetSelectorProps)
         setTranspose(harmonyPreset.transpose as any);
       } else {
         // playback用のプリセット読み込みは呼び出し側で実装
-        onSelect?.(presetId);
+        // onSelectはPresetManagerから渡される
       }
     } catch (err) {
       console.error('Error loading preset:', err);
