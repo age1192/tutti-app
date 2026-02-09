@@ -919,8 +919,15 @@ export default function PlaybackScreen() {
 
   // ボイシング編集モーダルを開く
   const handleOpenVoicingEditor = (id: string) => {
-    setSelectingMeasureId(null); // コード選択モーダルを閉じる
-    setEditingVoicingMeasureId(id);
+    try {
+      stopAllNotes(); // オーディオを停止
+      setSelectingMeasureId(null); // コード選択モーダルを閉じる
+      setEditingVoicingMeasureId(id);
+    } catch (err) {
+      console.error('Error opening voicing editor:', err);
+      setSelectingMeasureId(null);
+      setEditingVoicingMeasureId(id);
+    }
   };
 
   // ボイシングを保存（テンプレート指定ボイシング使用中でも、1つでも音を変えたら以降は声部連結で再計算する）
@@ -944,7 +951,13 @@ export default function PlaybackScreen() {
 
   const handleOpenChordSelector = (id: string) => {
     if (!isPlaying) {
-      setSelectingMeasureId(id);
+      try {
+        stopAllNotes(); // オーディオを停止してからモーダルを開く
+        setSelectingMeasureId(id);
+      } catch (err) {
+        console.error('Error opening chord selector:', err);
+        setSelectingMeasureId(id);
+      }
     }
   };
 
@@ -997,29 +1010,45 @@ export default function PlaybackScreen() {
 
   // プリセット読み込み（テンプレート＆ユーザー保存プリセット対応）
   const handleLoadPreset = (presetId: string) => {
-    if (isPlaying) return;
+    try {
+      // 再生中なら停止
+      if (isPlaying) {
+        setIsPlaying(false);
+      }
+      
+      // オーディオを停止してからプリセットを読み込む
+      stopAllNotes();
+      
+      const template = getTemplateById(presetId);
+      const userPreset = playbackPresets.find((p) => p.id === presetId);
+      const preset = template ?? userPreset;
+      if (!preset) return;
 
-    const template = getTemplateById(presetId);
-    const userPreset = playbackPresets.find((p) => p.id === presetId);
-    const preset = template ?? userPreset;
-    if (!preset) return;
+      // テンプレートの場合、常に元の状態にリセット（hasCustomVoicing を全て false に）
+      // ユーザー保存プリセットの場合は、保存されている状態をそのまま使用
+      const measuresWithVoicing = preset.measures.map((m, index) => ({
+        ...m,
+        hasCustomVoicing: template ? false : m.hasCustomVoicing, // テンプレートの場合は常にfalse
+      }));
 
-    // テンプレートの場合、常に元の状態にリセット（hasCustomVoicing を全て false に）
-    // ユーザー保存プリセットの場合は、保存されている状態をそのまま使用
-    const measuresWithVoicing = preset.measures.map((m, index) => ({
-      ...m,
-      hasCustomVoicing: template ? false : m.hasCustomVoicing, // テンプレートの場合は常にfalse
-    }));
-
-    setMeasures(measuresWithVoicing);
-    setTempo(preset.tempo);
-    setTempoInput(preset.tempo.toString());
-    setLocalTimeSignature(preset.timeSignature);
-    setTimeSignature(preset.timeSignature);
-    setMetronomeEnabled(preset.metronomeEnabled);
-    setUseSpecifiedVoicing(false); // 常に声部連結を使用
-    setCurrentTemplateId(template ? presetId : null); // テンプレートの場合はIDを保存、ユーザー編集時はnull
-    setPresetManagerVisible(false);
+      setMeasures(measuresWithVoicing);
+      setTempo(preset.tempo);
+      setTempoInput(preset.tempo.toString());
+      setLocalTimeSignature(preset.timeSignature);
+      setTimeSignature(preset.timeSignature);
+      setMetronomeEnabled(preset.metronomeEnabled);
+      setUseSpecifiedVoicing(false); // 常に声部連結を使用
+      setCurrentTemplateId(template ? presetId : null); // テンプレートの場合はIDを保存、ユーザー編集時はnull
+      setPresetManagerVisible(false);
+    } catch (err) {
+      console.error('Error loading preset:', err);
+      try {
+        stopAllNotes();
+      } catch (stopErr) {
+        console.error('Error stopping audio:', stopErr);
+      }
+      Alert.alert('エラー', 'プリセットの読み込みに失敗しました');
+    }
   };
 
   // プリセット読み込み時にプリセットリストを更新
@@ -1439,6 +1468,7 @@ export default function PlaybackScreen() {
         animationType="fade"
         onRequestClose={() => {
           try {
+            stopAllNotes(); // モーダルを閉じる時にオーディオを停止
             setTimeout(() => {
               setSelectingMeasureId(null);
             }, 100);

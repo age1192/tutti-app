@@ -92,9 +92,42 @@ export function useAudioEngine() {
     init();
 
     return () => {
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
+      // クリーンアップ時にすべての音を停止
+      try {
+        const ctx = audioContextRef.current;
+        if (ctx) {
+          // すべてのノートを停止
+          Object.keys(ctx).forEach((key) => {
+            if (key.startsWith('__note_')) {
+              const noteId = parseInt(key.replace('__note_', ''), 10);
+              const oscillator = (ctx as any)[key];
+              if (oscillator) {
+                try {
+                  const gainNode = (oscillator as any).__gainNode;
+                  if (gainNode) {
+                    gainNode.gain.cancelScheduledValues(0);
+                    gainNode.gain.setValueAtTime(0, 0);
+                  }
+                  oscillator.stop();
+                } catch (e) {
+                  // 既に停止している場合は無視
+                }
+              }
+            }
+          });
+          
+          // AudioContextを閉じる
+          if (ctx.state !== 'closed') {
+            ctx.close().catch(() => {
+              // エラーは無視
+            });
+          }
+        }
         audioContextRef.current = null;
+        masterGainRef.current = null;
+        activeNoteCountRef.current = 0;
+      } catch (err) {
+        console.error('[Audio] Error during cleanup:', err);
       }
     };
   }, [loadSettings]);
