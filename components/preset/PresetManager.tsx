@@ -93,14 +93,23 @@ export function PresetManager({ visible, onClose, type, onSelect }: PresetManage
     }
   };
 
-  const handleSelect = (presetId: string) => {
+  const handleSelect = async (presetId: string) => {
     try {
-      onSelect?.(presetId);
+      // モーダルを閉じてから処理を実行（iOSでクラッシュを防ぐ）
       onClose();
+      
+      // 少し待ってから処理を実行（モーダルのアニメーション完了を待つ）
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      onSelect?.(presetId);
     } catch (err) {
       console.error('Error selecting preset:', err);
-      Alert.alert('エラー', 'プリセットの選択に失敗しました');
-      onClose();
+      const errorMsg = err instanceof Error ? err.message : 'プリセットの選択に失敗しました';
+      if (Platform.OS === 'web') {
+        window.alert(errorMsg);
+      } else {
+        Alert.alert('エラー', errorMsg);
+      }
     }
   };
 

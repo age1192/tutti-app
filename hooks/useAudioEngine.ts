@@ -529,6 +529,26 @@ export function useAudioEngine() {
         return;
       }
 
+      // iOS: suspended状態の場合は確実にresume（ユーザーインタラクション時）
+      if (ctx.state === 'suspended') {
+        try {
+          await ctx.resume();
+          // resume後、状態が変わるまで待機
+          let retries = 0;
+          while (ctx.state === 'suspended' && retries < 10) {
+            await new Promise(resolve => setTimeout(resolve, 10));
+            retries++;
+          }
+          if (ctx.state === 'suspended') {
+            console.warn('[Audio] AudioContext still suspended after resume, skipping note:', noteId);
+            return;
+          }
+        } catch (e) {
+          console.warn('[Audio] Failed to resume AudioContext:', e);
+          return;
+        }
+      }
+
       const masterGain = _sharedMasterGain;
       if (!ctx || !masterGain) {
         console.error('[Audio] AudioContext or masterGain is null after ensureAudioContextReady');
