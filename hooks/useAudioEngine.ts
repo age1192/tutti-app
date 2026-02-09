@@ -2,7 +2,7 @@
  * オーディオエンジン管理フック
  * react-native-audio-api を使用した音声再生（Native/Web両対応）
  */
-import { useRef, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Audio } from 'expo-av';
 import { Platform } from 'react-native';
 // react-native-audio-apiのインポート（エラーハンドリング付き）
@@ -21,24 +21,30 @@ interface AudioState {
   isAudioSupported: boolean;
 }
 
+// ============================================================
+// Module-level singleton: すべてのuseAudioEngineインスタンスが
+// 同一のAudioContextを共有する。
+// 複数のAudioContextが同時に存在するとiOSでネイティブスレッドが
+// 競合しSIGABRTクラッシュが発生するため、シングルトン化は必須。
+// ============================================================
+let _sharedCtx: any = null;
+let _sharedMasterGain: any = null;
+let _sharedActiveNoteCount = 0;
+let _refCount = 0;
+const MAX_CONCURRENT_NOTES = 32;
+
 export function useAudioEngine() {
   const [audioState, setAudioState] = useState<AudioState>({
-    isReady: false,
-    isAudioSupported: false,
+    isReady: _sharedCtx != null && _sharedCtx.state !== 'closed',
+    isAudioSupported: _sharedCtx != null && _sharedCtx.state !== 'closed',
   });
 
   const { settings, loadSettings } = useSettingsStore();
 
-  // AudioContext（react-native-audio-api: Native/Web両対応）
-  const audioContextRef = useRef<AudioContext | null>(null);
-  // マスターGainNode（音量振り切れ防止）
-  const masterGainRef = useRef<GainNode | null>(null);
-  // 同時に鳴らせる音の最大数（リソース保護）
-  const MAX_CONCURRENT_NOTES = 32;
-  const activeNoteCountRef = useRef(0);
-
-  // 初期化
+  // 初期化（シングルトンパターン: 最初のインスタンスがAudioContextを作成）
   useEffect(() => {
+    _refCount++;
+
     const init = async () => {
       try {
         await loadSettings();
@@ -51,28 +57,33 @@ export function useAudioEngine() {
           shouldDuckAndroid: true,
         });
 
-        // react-native-audio-api の AudioContext を作成（Development Buildが必要）
         let isAudioSupported = false;
         if (AudioContext) {
-          try {
-            const ctx = new AudioContext();
-            audioContextRef.current = ctx;
-            
-            // マスターGainNodeを作成（音量振り切れ防止）
-            const masterGain = ctx.createGain();
-            masterGain.gain.value = 0.7; // 全体の音量を70%に制限（クリッピング防止）
-            masterGain.connect(ctx.destination);
-            masterGainRef.current = masterGain;
-            
+          // 共有AudioContextが既に存在し、有効な場合は再利用する
+          if (_sharedCtx && _sharedCtx.state !== 'closed') {
             isAudioSupported = true;
-            activeNoteCountRef.current = 0;
-            console.log('[Audio] AudioContext initialized successfully (react-native-audio-api)');
-          } catch (e) {
-            console.warn('[Audio] Failed to create AudioContext:', e);
-            isAudioSupported = false;
+            console.log('[Audio] Reusing existing shared AudioContext');
+          } else {
+            // 新しいAudioContextを作成（初回のみ、または前回が閉じられた場合）
+            try {
+              const ctx = new AudioContext();
+              _sharedCtx = ctx;
+              
+              const masterGain = ctx.createGain();
+              masterGain.gain.value = 0.7;
+              masterGain.connect(ctx.destination);
+              _sharedMasterGain = masterGain;
+              
+              _sharedActiveNoteCount = 0;
+              isAudioSupported = true;
+              console.log('[Audio] AudioContext initialized successfully (singleton)');
+            } catch (e) {
+              console.warn('[Audio] Failed to create AudioContext:', e);
+              isAudioSupported = false;
+            }
           }
         } else {
-          console.warn('[Audio] react-native-audio-api is not available. Development Build is required.');
+          console.warn('[Audio] react-native-audio-api is not available.');
           isAudioSupported = false;
         }
 
@@ -92,42 +103,42 @@ export function useAudioEngine() {
     init();
 
     return () => {
-      // クリーンアップ時にすべての音を停止
-      try {
-        const ctx = audioContextRef.current;
-        if (ctx) {
-          // すべてのノートを停止
-          Object.keys(ctx).forEach((key) => {
-            if (key.startsWith('__note_')) {
-              const noteId = parseInt(key.replace('__note_', ''), 10);
-              const oscillator = (ctx as any)[key];
-              if (oscillator) {
-                try {
-                  const gainNode = (oscillator as any).__gainNode;
-                  if (gainNode) {
-                    gainNode.gain.cancelScheduledValues(0);
-                    gainNode.gain.setValueAtTime(0, 0);
-                  }
-                  oscillator.stop();
-                } catch (e) {
-                  // 既に停止している場合は無視
+      _refCount--;
+      // 最後のインスタンスがアンマウントされた時のみAudioContextを閉じる
+      if (_refCount <= 0) {
+        _refCount = 0;
+        const cleanup = async () => {
+          try {
+            const ctx = _sharedCtx;
+            if (!ctx) return;
+
+            const noteKeys = Object.keys(ctx).filter(key => key.startsWith('__note_'));
+            noteKeys.forEach((key) => {
+              try {
+                const oscillator = (ctx as any)[key];
+                if (oscillator) {
+                  try { oscillator.stop(); } catch (e) {}
+                  delete (ctx as any)[key];
                 }
-              }
-            }
-          });
-          
-          // AudioContextを閉じる
-          if (ctx.state !== 'closed') {
-            ctx.close().catch(() => {
-              // エラーは無視
+              } catch (e) {}
             });
+            
+            _sharedActiveNoteCount = 0;
+            
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            if (ctx.state !== 'closed') {
+              try { await ctx.close(); } catch (e) {}
+            }
+          } catch (err) {
+            console.error('[Audio] Error during cleanup:', err);
+          } finally {
+            _sharedCtx = null;
+            _sharedMasterGain = null;
+            _sharedActiveNoteCount = 0;
           }
-        }
-        audioContextRef.current = null;
-        masterGainRef.current = null;
-        activeNoteCountRef.current = 0;
-      } catch (err) {
-        console.error('[Audio] Error during cleanup:', err);
+        };
+        cleanup();
       }
     };
   }, [loadSettings]);
@@ -160,7 +171,7 @@ export function useAudioEngine() {
    */
   const playToneInternal = useCallback(
     (frequency: number, duration: number, volume: number = 0.5) => {
-      const ctx = audioContextRef.current;
+      const ctx = _sharedCtx;
       if (!ctx) return;
 
       // バックグラウンドから復帰時など、suspended の場合は再開
@@ -222,7 +233,7 @@ export function useAudioEngine() {
   const playClick = useCallback(
     (isAccent: boolean = false, volume: number = 0.7, tone: MetronomeToneType = 'default') => {
       if (audioState.isAudioSupported) {
-        const ctx = audioContextRef.current;
+        const ctx = _sharedCtx;
         if (!ctx) return;
 
         // バックグラウンドから復帰時など、suspended の場合は再開（メトロノーム音が鳴るように）
@@ -340,7 +351,7 @@ export function useAudioEngine() {
       }
 
       if (audioState.isAudioSupported) {
-        const ctx = audioContextRef.current;
+        const ctx = _sharedCtx;
         if (!ctx) return;
 
         const currentTime = ctx.currentTime;
@@ -400,38 +411,21 @@ export function useAudioEngine() {
    */
   // AudioContextとマスターGainNodeの状態を確認・修復する関数
   const ensureAudioContextReady = useCallback(async (): Promise<boolean> => {
-    let ctx = audioContextRef.current;
-    let masterGain = masterGainRef.current;
+    const ctx = _sharedCtx;
 
-    // AudioContextが存在しない、またはclosedの場合は再作成
+    // AudioContextが存在しない、またはclosedの場合は何もしない
+    // （再作成はiOSでスレッド競合を引き起こすため行わない）
     if (!ctx || ctx.state === 'closed') {
-      try {
-        console.log('[Audio] AudioContext is missing or closed, recreating...');
-        ctx = new AudioContext();
-        audioContextRef.current = ctx;
-        
-        // マスターGainNodeも再作成
-        masterGain = ctx.createGain();
-        masterGain.gain.value = 0.7;
-        masterGain.connect(ctx.destination);
-        masterGainRef.current = masterGain;
-        activeNoteCountRef.current = 0;
-        console.log('[Audio] AudioContext and masterGain recreated successfully');
-      } catch (e) {
-        console.error('[Audio] Failed to recreate AudioContext:', e);
-        return false;
-      }
+      return false;
     }
 
     // マスターGainNodeが存在しない場合は再作成
-    if (!masterGain) {
+    if (!_sharedMasterGain) {
       try {
-        console.log('[Audio] MasterGain is missing, recreating...');
-        masterGain = ctx.createGain();
+        const masterGain = ctx.createGain();
         masterGain.gain.value = 0.7;
         masterGain.connect(ctx.destination);
-        masterGainRef.current = masterGain;
-        console.log('[Audio] MasterGain recreated successfully');
+        _sharedMasterGain = masterGain;
       } catch (e) {
         console.error('[Audio] Failed to recreate masterGain:', e);
         return false;
@@ -442,7 +436,6 @@ export function useAudioEngine() {
     if (ctx.state === 'suspended') {
       try {
         await ctx.resume();
-        console.log('[Audio] AudioContext resumed from suspended state');
       } catch (e) {
         console.warn('[Audio] Failed to resume AudioContext:', e);
         return false;
@@ -456,6 +449,13 @@ export function useAudioEngine() {
     async (noteId: number, frequency: number, volume: number = 0.3, tone: ToneType = 'organ') => {
       if (!audioState.isAudioSupported) return;
 
+      const ctx = _sharedCtx;
+      // AudioContextが閉じられている場合は何もしない
+      if (!ctx || ctx.state === 'closed') {
+        console.warn('[Audio] AudioContext is closed, skipping note:', noteId);
+        return;
+      }
+
       // AudioContextとマスターGainNodeの状態を確認・修復
       const isReady = await ensureAudioContextReady();
       if (!isReady) {
@@ -463,10 +463,15 @@ export function useAudioEngine() {
         return;
       }
 
-      const ctx = audioContextRef.current;
-      const masterGain = masterGainRef.current;
+      const masterGain = _sharedMasterGain;
       if (!ctx || !masterGain) {
         console.error('[Audio] AudioContext or masterGain is null after ensureAudioContextReady');
+        return;
+      }
+      
+      // 再度状態をチェック（修復後に閉じられた可能性がある）
+      if (ctx.state === 'closed') {
+        console.warn('[Audio] AudioContext was closed during initialization, skipping note:', noteId);
         return;
       }
 
@@ -478,7 +483,7 @@ export function useAudioEngine() {
         }
 
         // 同時に鳴らせる音の数が上限に達している場合は、古い音を停止
-        if (activeNoteCountRef.current >= MAX_CONCURRENT_NOTES) {
+        if (_sharedActiveNoteCount >= MAX_CONCURRENT_NOTES) {
           // 最も古い音を探して停止（簡易実装：最初に見つかった音を停止）
           const keys = Object.keys(ctx).filter(k => k.startsWith('__note_'));
           if (keys.length > 0) {
@@ -761,7 +766,7 @@ export function useAudioEngine() {
         (oscillator as any).__filter = filter;
         (oscillator as any).__tone = tone; // 音色を保存（setNoteVolumeで使用）
         (ctx as any)[`__note_${noteId}`] = oscillator;
-        activeNoteCountRef.current++;
+        _sharedActiveNoteCount++;
       } catch (error) {
         // 予期しないエラーが発生した場合もログを残して処理を続行
         console.error('[Audio] Unexpected error in startNote:', error);
@@ -777,7 +782,7 @@ export function useAudioEngine() {
   const setNoteVolume = useCallback(
     (noteId: number, volume: number) => {
       if (audioState.isAudioSupported) {
-        const ctx = audioContextRef.current;
+        const ctx = _sharedCtx;
         if (!ctx) return;
 
         const oscillator = (ctx as any)[`__note_${noteId}`];
@@ -821,7 +826,7 @@ export function useAudioEngine() {
   const stopNote = useCallback(
     (noteId: number) => {
       if (audioState.isAudioSupported) {
-        const ctx = audioContextRef.current;
+        const ctx = _sharedCtx;
         if (!ctx) return;
 
         const oscillator = (ctx as any)[`__note_${noteId}`];
@@ -929,7 +934,7 @@ export function useAudioEngine() {
             // 既に停止している場合は無視
           }
           delete (ctx as any)[`__note_${noteId}`];
-          activeNoteCountRef.current = Math.max(0, activeNoteCountRef.current - 1);
+          _sharedActiveNoteCount = Math.max(0, _sharedActiveNoteCount - 1);
         }
       } else {
         console.log(`[Audio] stopNote: ${noteId}`);
@@ -939,29 +944,57 @@ export function useAudioEngine() {
   );
 
   /**
-   * すべての音を停止
+   * すべての音を停止（安全な実装）
    */
   const stopAllNotes = useCallback(() => {
-    if (audioState.isAudioSupported) {
-      const ctx = audioContextRef.current;
-      if (!ctx) return;
+    if (!audioState.isAudioSupported) return;
+    
+    const ctx = _sharedCtx;
+    if (!ctx) return;
+
+    try {
+      // AudioContextが既に閉じられている場合は何もしない
+      if (ctx.state === 'closed') {
+        return;
+      }
 
       // __note_ で始まるすべてのプロパティを削除
-      Object.keys(ctx).forEach((key) => {
-        if (key.startsWith('__note_')) {
+      const noteKeys = Object.keys(ctx).filter(key => key.startsWith('__note_'));
+      noteKeys.forEach((key) => {
+        try {
           const noteId = parseInt(key.replace('__note_', ''), 10);
-          stopNote(noteId);
+          const oscillator = (ctx as any)[key];
+          if (oscillator) {
+            const gainNode = (oscillator as any).__gainNode;
+            if (gainNode) {
+              const currentTime = ctx.currentTime;
+              gainNode.gain.cancelScheduledValues(currentTime);
+              gainNode.gain.setValueAtTime(0, currentTime);
+            }
+            try {
+              oscillator.stop();
+            } catch (e) {
+              // 既に停止している場合は無視
+            }
+            delete (ctx as any)[key];
+          }
+        } catch (e) {
+          console.warn('[Audio] Error stopping note:', e);
         }
       });
+      
+      _sharedActiveNoteCount = 0;
+    } catch (err) {
+      console.error('[Audio] Error in stopAllNotes:', err);
     }
-  }, [audioState.isAudioSupported, stopNote]);
+  }, [audioState.isAudioSupported]);
 
   /**
    * 現在の時間を取得
    */
   const getCurrentTime = useCallback((): number => {
-    if (audioState.isAudioSupported && audioContextRef.current) {
-      return audioContextRef.current.currentTime;
+    if (audioState.isAudioSupported && _sharedCtx) {
+      return _sharedCtx.currentTime;
     }
     return Date.now() / 1000;
   }, [audioState.isAudioSupported]);
@@ -982,7 +1015,7 @@ export function useAudioEngine() {
    * メトロノームなどから定期的に呼び出す
    */
   const ensureAudioContextResumed = useCallback(async () => {
-    const ctx = audioContextRef.current;
+    const ctx = _sharedCtx;
     if (ctx && ctx.state === 'suspended') {
       try {
         await ctx.resume();

@@ -82,10 +82,11 @@ interface VoicingEditorModalProps {
   measure: Measure | null;
   onSave: (midiNotes: number[]) => void;
   onCancel: () => void;
+  startNote: (noteId: number, frequency: number, volume?: number, tone?: string) => void;
+  stopAllNotes: () => void;
 }
 
-function VoicingEditorModal({ visible, measure, onSave, onCancel }: VoicingEditorModalProps) {
-  const { startNote, stopAllNotes } = useAudioEngine();
+function VoicingEditorModal({ visible, measure, onSave, onCancel, startNote, stopAllNotes }: VoicingEditorModalProps) {
   const [satbVoices, setSatbVoices] = useState<SatbVoice[]>([
     { pitchClass: 0, octave: 2 },
     { pitchClass: 0, octave: 3 },
@@ -897,19 +898,16 @@ export default function PlaybackScreen() {
   const handleSelectChord = useCallback((id: string, chordName: string) => {
     try {
       const midiNotes = chordNameToMidiNotes(chordName, 4);
-      setUseSpecifiedVoicing(false); // ユーザー編集時は声部連結を使用
-      setCurrentTemplateId(null); // ユーザーが編集したらテンプレート状態を解除
+      setUseSpecifiedVoicing(false);
+      setCurrentTemplateId(null);
       setMeasures((prevMeasures) =>
         prevMeasures.map((m) =>
           m.id === id
-            ? { ...m, chordName, midiNotes, hasCustomVoicing: false } // コード変更時はカスタムボイシングをリセット
+            ? { ...m, chordName, midiNotes, hasCustomVoicing: false }
             : m
         )
       );
-      // モーダルを閉じる前に少し遅延を入れてiOSでのクラッシュを防ぐ
-      setTimeout(() => {
-        setSelectingMeasureId(null);
-      }, 100);
+      setSelectingMeasureId(null);
     } catch (err) {
       console.error('Select chord error:', err);
       Alert.alert('エラー', 'コードの選択に失敗しました');
@@ -919,15 +917,8 @@ export default function PlaybackScreen() {
 
   // ボイシング編集モーダルを開く
   const handleOpenVoicingEditor = (id: string) => {
-    try {
-      stopAllNotes(); // オーディオを停止
-      setSelectingMeasureId(null); // コード選択モーダルを閉じる
-      setEditingVoicingMeasureId(id);
-    } catch (err) {
-      console.error('Error opening voicing editor:', err);
-      setSelectingMeasureId(null);
-      setEditingVoicingMeasureId(id);
-    }
+    setSelectingMeasureId(null);
+    setEditingVoicingMeasureId(id);
   };
 
   // ボイシングを保存（テンプレート指定ボイシング使用中でも、1つでも音を変えたら以降は声部連結で再計算する）
@@ -951,13 +942,7 @@ export default function PlaybackScreen() {
 
   const handleOpenChordSelector = (id: string) => {
     if (!isPlaying) {
-      try {
-        stopAllNotes(); // オーディオを停止してからモーダルを開く
-        setSelectingMeasureId(id);
-      } catch (err) {
-        console.error('Error opening chord selector:', err);
-        setSelectingMeasureId(id);
-      }
+      setSelectingMeasureId(id);
     }
   };
 
@@ -988,15 +973,12 @@ export default function PlaybackScreen() {
         metronomeEnabled,
       });
       setPresetName('');
-      // モーダルを閉じる前に少し遅延を入れてiOSでのクラッシュを防ぐ
-      setTimeout(() => {
-        setSavePresetModalVisible(false);
-        if (Platform.OS === 'web') {
-          window.alert('プリセットを保存しました');
-        } else {
-          Alert.alert('完了', 'プリセットを保存しました');
-        }
-      }, 100);
+      setSavePresetModalVisible(false);
+      if (Platform.OS === 'web') {
+        window.alert('プリセットを保存しました');
+      } else {
+        Alert.alert('完了', 'プリセットを保存しました');
+      }
     } catch (error) {
       console.error('Failed to save preset:', error);
       const errorMsg = error instanceof Error ? error.message : 'プリセットの保存に失敗しました';
@@ -1011,24 +993,18 @@ export default function PlaybackScreen() {
   // プリセット読み込み（テンプレート＆ユーザー保存プリセット対応）
   const handleLoadPreset = (presetId: string) => {
     try {
-      // 再生中なら停止
       if (isPlaying) {
         setIsPlaying(false);
       }
-      
-      // オーディオを停止してからプリセットを読み込む
-      stopAllNotes();
       
       const template = getTemplateById(presetId);
       const userPreset = playbackPresets.find((p) => p.id === presetId);
       const preset = template ?? userPreset;
       if (!preset) return;
 
-      // テンプレートの場合、常に元の状態にリセット（hasCustomVoicing を全て false に）
-      // ユーザー保存プリセットの場合は、保存されている状態をそのまま使用
-      const measuresWithVoicing = preset.measures.map((m, index) => ({
+      const measuresWithVoicing = preset.measures.map((m) => ({
         ...m,
-        hasCustomVoicing: template ? false : m.hasCustomVoicing, // テンプレートの場合は常にfalse
+        hasCustomVoicing: template ? false : m.hasCustomVoicing,
       }));
 
       setMeasures(measuresWithVoicing);
@@ -1037,16 +1013,11 @@ export default function PlaybackScreen() {
       setLocalTimeSignature(preset.timeSignature);
       setTimeSignature(preset.timeSignature);
       setMetronomeEnabled(preset.metronomeEnabled);
-      setUseSpecifiedVoicing(false); // 常に声部連結を使用
-      setCurrentTemplateId(template ? presetId : null); // テンプレートの場合はIDを保存、ユーザー編集時はnull
+      setUseSpecifiedVoicing(false);
+      setCurrentTemplateId(template ? presetId : null);
       setPresetManagerVisible(false);
     } catch (err) {
       console.error('Error loading preset:', err);
-      try {
-        stopAllNotes();
-      } catch (stopErr) {
-        console.error('Error stopping audio:', stopErr);
-      }
       Alert.alert('エラー', 'プリセットの読み込みに失敗しました');
     }
   };
@@ -1108,15 +1079,7 @@ export default function PlaybackScreen() {
                 style={styles.chordTableCell}
                 onPress={() => {
                   if (selectingMeasureId) {
-                    try {
-                      handleSelectChord(selectingMeasureId, chordName);
-                    } catch (err) {
-                      console.error('Error selecting chord:', err);
-                      Alert.alert('エラー', 'コードの選択に失敗しました');
-                      setTimeout(() => {
-                        setSelectingMeasureId(null);
-                      }, 100);
-                    }
+                    handleSelectChord(selectingMeasureId, chordName);
                   }
                 }}
               >
@@ -1466,17 +1429,7 @@ export default function PlaybackScreen() {
         visible={selectingMeasureId !== null}
         transparent
         animationType="fade"
-        onRequestClose={() => {
-          try {
-            stopAllNotes(); // モーダルを閉じる時にオーディオを停止
-            setTimeout(() => {
-              setSelectingMeasureId(null);
-            }, 100);
-          } catch (err) {
-            console.error('Error closing modal:', err);
-            setSelectingMeasureId(null);
-          }
-        }}
+        onRequestClose={() => setSelectingMeasureId(null)}
         hardwareAccelerated={false}
         presentationStyle="overFullScreen"
       >
@@ -1490,17 +1443,7 @@ export default function PlaybackScreen() {
               <Text style={styles.modalTitle}>コードを選択</Text>
             <Pressable
               style={styles.modalCloseIconButton}
-              onPress={() => {
-                try {
-                  // iOSでのクラッシュを防ぐため、少し遅延を入れる
-                  setTimeout(() => {
-                    setSelectingMeasureId(null);
-                  }, 100);
-                } catch (err) {
-                  console.error('Error closing modal:', err);
-                  setSelectingMeasureId(null);
-                }
-              }}
+              onPress={() => setSelectingMeasureId(null)}
             >
               <Text style={styles.modalCloseIconText}>×</Text>
             </Pressable>
@@ -1519,17 +1462,7 @@ export default function PlaybackScreen() {
             
             <Pressable 
               style={styles.modalCloseButton} 
-              onPress={() => {
-                try {
-                  // iOSでのクラッシュを防ぐため、少し遅延を入れる
-                  setTimeout(() => {
-                    setSelectingMeasureId(null);
-                  }, 100);
-                } catch (err) {
-                  console.error('Error closing modal:', err);
-                  setSelectingMeasureId(null);
-                }
-              }}
+              onPress={() => setSelectingMeasureId(null)}
             >
               <Text style={styles.modalCloseText}>キャンセル</Text>
             </Pressable>
@@ -1547,6 +1480,8 @@ export default function PlaybackScreen() {
           }
         }}
         onCancel={handleCancelVoicingEdit}
+        startNote={startNote}
+        stopAllNotes={stopAllNotes}
       />
 
       {/* プリセット保存モーダル */}

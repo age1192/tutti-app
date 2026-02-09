@@ -17,7 +17,6 @@ import { colors, typography, spacing } from '../../styles';
 import { usePresetStore } from '../../stores/usePresetStore';
 import { MetronomePreset, HarmonyPreset, PlaybackPreset } from '../../types';
 import { PLAYBACK_TEMPLATES, isTemplateId } from '../../utils/playbackTemplates';
-import { useAudioEngine } from '../../hooks/useAudioEngine';
 
 interface PresetManagerProps {
   visible: boolean;
@@ -36,7 +35,6 @@ export function PresetManager({ visible, onClose, type, onSelect }: PresetManage
     deleteHarmonyPreset,
     deletePlaybackPreset,
   } = usePresetStore();
-  const { stopAllNotes } = useAudioEngine();
 
   const presets = type === 'metronome' 
     ? metronomePresets 
@@ -45,32 +43,13 @@ export function PresetManager({ visible, onClose, type, onSelect }: PresetManage
     : [...PLAYBACK_TEMPLATES, ...playbackPresets];
   const [presetName, setPresetName] = useState('');
 
-  // モーダル表示時にオーディオを停止してクラッシュを防ぐ
   useEffect(() => {
     if (visible) {
-      try {
-        // オーディオを停止してからプリセットを読み込む
-        stopAllNotes();
-        loadAllPresets().catch((err) => {
-          console.error('Failed to load presets:', err);
-          // エラーが発生してもモーダルは表示し続ける
-        });
-      } catch (err) {
-        console.error('Error in loadAllPresets effect:', err);
-      }
+      loadAllPresets().catch((err) => {
+        console.error('Failed to load presets:', err);
+      });
     }
-    
-    // モーダルが閉じられる時もオーディオを停止
-    return () => {
-      if (!visible) {
-        try {
-          stopAllNotes();
-        } catch (err) {
-          console.error('Error stopping audio on unmount:', err);
-        }
-      }
-    };
-  }, [visible, loadAllPresets, stopAllNotes]);
+  }, [visible, loadAllPresets]);
 
   const handleDelete = (id: string) => {
     const confirmMessage = 'このプリセットを削除しますか？';
@@ -116,24 +95,12 @@ export function PresetManager({ visible, onClose, type, onSelect }: PresetManage
 
   const handleSelect = (presetId: string) => {
     try {
-      // オーディオを停止してからプリセットを選択
-      stopAllNotes();
       onSelect?.(presetId);
-      // モーダルを閉じる前に少し遅延を入れてiOSでのクラッシュを防ぐ
-      setTimeout(() => {
-        onClose();
-      }, 150);
+      onClose();
     } catch (err) {
       console.error('Error selecting preset:', err);
-      try {
-        stopAllNotes();
-      } catch (stopErr) {
-        console.error('Error stopping audio:', stopErr);
-      }
       Alert.alert('エラー', 'プリセットの選択に失敗しました');
-      setTimeout(() => {
-        onClose();
-      }, 100);
+      onClose();
     }
   };
 

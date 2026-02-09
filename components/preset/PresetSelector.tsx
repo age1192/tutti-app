@@ -8,7 +8,6 @@ import { PresetManager } from './PresetManager';
 import { usePresetStore } from '../../stores/usePresetStore';
 import { useMetronomeStore } from '../../stores/useMetronomeStore';
 import { useHarmonyStore } from '../../stores/useHarmonyStore';
-import { useAudioEngine } from '../../hooks/useAudioEngine';
 
 interface PresetSelectorProps {
   type: 'metronome' | 'harmony' | 'playback';
@@ -19,7 +18,6 @@ export function PresetSelector({ type, screenWidth = 800 }: PresetSelectorProps)
   const [managerVisible, setManagerVisible] = useState(false);
   const [saveModalVisible, setSaveModalVisible] = useState(false);
   const [presetName, setPresetName] = useState('');
-  const { stopAllNotes } = useAudioEngine();
 
   // 画面幅に応じた動的スタイル計算
   const dynamicStyles = useMemo(() => {
@@ -93,15 +91,12 @@ export function PresetSelector({ type, screenWidth = 800 }: PresetSelectorProps)
         throw new Error('Playback preset save should be handled by parent component');
       }
       setPresetName('');
-      // モーダルを閉じる前に少し遅延を入れてiOSでのクラッシュを防ぐ
-      setTimeout(() => {
-        setSaveModalVisible(false);
-        if (Platform.OS === 'web') {
-          window.alert('プリセットを保存しました');
-        } else {
-          Alert.alert('完了', 'プリセットを保存しました');
-        }
-      }, 100);
+      setSaveModalVisible(false);
+      if (Platform.OS === 'web') {
+        window.alert('プリセットを保存しました');
+      } else {
+        Alert.alert('完了', 'プリセットを保存しました');
+      }
     } catch (error) {
       console.error('Failed to save preset:', error);
       const errorMsg = error instanceof Error ? error.message : 'プリセットの保存に失敗しました';
@@ -115,9 +110,6 @@ export function PresetSelector({ type, screenWidth = 800 }: PresetSelectorProps)
 
   const handleLoad = (presetId: string) => {
     try {
-      // オーディオを停止してからプリセットを読み込む
-      stopAllNotes();
-      
       const { metronomePresets, harmonyPresets, playbackPresets } = usePresetStore.getState();
       const presets = type === 'metronome' 
         ? metronomePresets 
@@ -154,11 +146,6 @@ export function PresetSelector({ type, screenWidth = 800 }: PresetSelectorProps)
       }
     } catch (err) {
       console.error('Error loading preset:', err);
-      try {
-        stopAllNotes();
-      } catch (stopErr) {
-        console.error('Error stopping audio:', stopErr);
-      }
       Alert.alert('エラー', 'プリセットの読み込みに失敗しました');
     }
   };
