@@ -31,6 +31,8 @@ let _sharedCtx: any = null;
 let _sharedMasterGain: any = null;
 let _sharedActiveNoteCount = 0;
 let _refCount = 0;
+let _isInitializing = false;
+let _initPromise: Promise<void> | null = null;
 const MAX_CONCURRENT_NOTES = 32;
 
 export function useAudioEngine() {
@@ -47,56 +49,95 @@ export function useAudioEngine() {
 
     const init = async () => {
       try {
-        await loadSettings();
-        const currentSettings = useSettingsStore.getState().settings;
-        
-        // expo-av のオーディオモード設定（iOS サイレントモード対応など）
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: currentSettings?.backgroundPlayback || false,
-          shouldDuckAndroid: true,
-        });
-
-        let isAudioSupported = false;
-        if (AudioContext) {
-          // 共有AudioContextが既に存在し、有効な場合は再利用する
-          if (_sharedCtx && _sharedCtx.state !== 'closed') {
-            isAudioSupported = true;
-            console.log('[Audio] Reusing existing shared AudioContext');
-          } else {
-            // 新しいAudioContextを作成（初回のみ、または前回が閉じられた場合）
-            try {
-              const ctx = new AudioContext();
-              _sharedCtx = ctx;
-              
-              const masterGain = ctx.createGain();
-              masterGain.gain.value = 0.7;
-              masterGain.connect(ctx.destination);
-              _sharedMasterGain = masterGain;
-              
-              _sharedActiveNoteCount = 0;
-              isAudioSupported = true;
-              console.log('[Audio] AudioContext initialized successfully (singleton)');
-            } catch (e) {
-              console.warn('[Audio] Failed to create AudioContext:', e);
-              isAudioSupported = false;
-            }
-          }
-        } else {
-          console.warn('[Audio] react-native-audio-api is not available.');
-          isAudioSupported = false;
+        // 既に初期化中または初期化済みの場合は待機
+        if (_initPromise) {
+          await _initPromise;
+          setAudioState({
+            isReady: _sharedCtx != null && _sharedCtx.state !== 'closed',
+            isAudioSupported: _sharedCtx != null && _sharedCtx.state !== 'closed',
+          });
+          return;
         }
 
-        setAudioState({
-          isReady: true,
-          isAudioSupported,
-        });
+        // 既にAudioContextが存在する場合は再利用
+        if (_sharedCtx && _sharedCtx.state !== 'closed') {
+          setAudioState({
+            isReady: true,
+            isAudioSupported: true,
+          });
+          return;
+        }
+
+        // 初期化を開始
+        _isInitializing = true;
+        _initPromise = (async () => {
+          try {
+            await loadSettings();
+            const currentSettings = useSettingsStore.getState().settings;
+            
+            // expo-av のオーディオモード設定（iOS サイレントモード対応など）
+            await Audio.setAudioModeAsync({
+              playsInSilentModeIOS: true,
+              staysActiveInBackground: currentSettings?.backgroundPlayback || false,
+              shouldDuckAndroid: true,
+            });
+
+            let isAudioSupported = false;
+            if (AudioContext) {
+              // 再度チェック（他のスレッドが既に作成した可能性がある）
+              if (_sharedCtx && _sharedCtx.state !== 'closed') {
+                isAudioSupported = true;
+                console.log('[Audio] Reusing existing shared AudioContext');
+              } else {
+                // 新しいAudioContextを作成（初回のみ、または前回が閉じられた場合）
+                try {
+                  const ctx = new AudioContext();
+                  _sharedCtx = ctx;
+                  
+                  const masterGain = ctx.createGain();
+                  masterGain.gain.value = 0.7;
+                  masterGain.connect(ctx.destination);
+                  _sharedMasterGain = masterGain;
+                  
+                  _sharedActiveNoteCount = 0;
+                  isAudioSupported = true;
+                  console.log('[Audio] AudioContext initialized successfully (singleton)');
+                } catch (e) {
+                  console.warn('[Audio] Failed to create AudioContext:', e);
+                  isAudioSupported = false;
+                }
+              }
+            } else {
+              console.warn('[Audio] react-native-audio-api is not available.');
+              isAudioSupported = false;
+            }
+
+            // すべてのインスタンスに状態を通知
+            setAudioState({
+              isReady: true,
+              isAudioSupported,
+            });
+          } catch (error) {
+            console.warn('Audio initialization failed:', error);
+            setAudioState({
+              isReady: false,
+              isAudioSupported: false,
+            });
+          } finally {
+            _isInitializing = false;
+            _initPromise = null;
+          }
+        })();
+
+        await _initPromise;
       } catch (error) {
         console.warn('Audio initialization failed:', error);
         setAudioState({
           isReady: false,
           isAudioSupported: false,
         });
+        _isInitializing = false;
+        _initPromise = null;
       }
     };
 
@@ -109,6 +150,11 @@ export function useAudioEngine() {
         _refCount = 0;
         const cleanup = async () => {
           try {
+            // 初期化中の場合は完了を待つ
+            if (_initPromise) {
+              await _initPromise;
+            }
+
             const ctx = _sharedCtx;
             if (!ctx) return;
 
@@ -136,6 +182,8 @@ export function useAudioEngine() {
             _sharedCtx = null;
             _sharedMasterGain = null;
             _sharedActiveNoteCount = 0;
+            _isInitializing = false;
+            _initPromise = null;
           }
         };
         cleanup();

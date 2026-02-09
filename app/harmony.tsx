@@ -59,7 +59,7 @@ export default function HarmonyScreen() {
     clearActiveNotes,
   } = useHarmonyStore();
 
-  const { startNote, stopNote, stopAllNotes, isAudioSupported } = useAudioEngine();
+  const { startNote, stopNote, stopAllNotes, setNoteVolume, isAudioSupported } = useAudioEngine();
   const insets = useSafeAreaInsets();
   const { settings, loadSettings } = useSettingsStore();
   const [isLandscape, setIsLandscape] = useState(false);
@@ -519,6 +519,10 @@ export default function HarmonyScreen() {
             holdMode={holdMode}
             keyIndex={chordKeyIndex}
             onKeyChange={(delta) => setChordKeyIndex((prev) => (prev + delta + 12) % 12)}
+            startNote={startNote}
+            stopNote={stopNote}
+            stopAllNotes={stopAllNotes}
+            setNoteVolume={setNoteVolume}
           />
         )}
       </View>

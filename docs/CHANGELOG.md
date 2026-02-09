@@ -8,6 +8,36 @@
 
 ---
 
+## [1.3.8] - 2026-01-31
+
+### 修正
+- **iOSでのクラッシュを根本的に修正（複数AudioContext問題の解決）**
+  - `useAudioEngine.ts`をシングルトンパターンに変更し、複数のコンポーネントが`useAudioEngine()`を呼んでもAudioContextは1つだけになるように修正
+  - モジュールレベルの共有変数（`_sharedCtx`、`_sharedMasterGain`）を使用し、参照カウンターで最後のインスタンスがアンマウントされた時のみクリーンアップ
+  - これにより、最大8つのAudioContextが同時に存在していた問題を解決（各AudioContextが独立したネイティブスレッドプールを作成していたため、iOSでスレッド競合が発生していた）
+
+### 改善
+- **不要なAudioContext作成を削除**
+  - `PresetManager`と`PresetSelector`から`useAudioEngine()`の呼び出しを完全削除（プリセット管理にオーディオ操作は不要）
+  - `VoicingEditorModal`をprops経由に変更し、親コンポーネントから`startNote`/`stopAllNotes`を渡すように修正
+  - これにより、モーダル開閉時に不要なAudioContextが作成されることを防止
+
+- **AudioContextの再作成ロジックを削除**
+  - `ensureAudioContextReady`からAudioContext再作成ロジックを削除（閉じたAudioContextを再作成するとスレッド競合が発生するため）
+  - AudioContextが閉じられている場合は単に`false`を返すように変更
+
+- **コードの簡素化**
+  - `playback.tsx`から不要な`stopAllNotes()`呼び出しと`setTimeout()`遅延を全て削除
+  - モーダル開閉時の過剰な安全策を削除し、シンプルな実装に変更
+  - コード選択、プリセット読み込み、ボイシング編集などの処理を簡素化
+
+### 技術的詳細
+- **クラッシュの原因**: 複数の`AudioContext`インスタンスが同時に存在し、それぞれが独立したネイティブスレッドプール（`audioapi::ThreadPool`、`audioapi::AudioNodeDestructor`）を作成していたため、iOSでスレッド競合が発生し`SIGABRT`クラッシュが発生していた
+- **修正方法**: `useAudioEngine`フックをシングルトンパターンに変更し、すべてのコンポーネントが同一のAudioContextを共有するように修正
+- **影響範囲**: メトロノーム、ハーモニー、コード再生、プリセット管理の全画面でクラッシュが解消される
+
+---
+
 ## [1.3.7] - 2026-01-31
 
 ### 変更

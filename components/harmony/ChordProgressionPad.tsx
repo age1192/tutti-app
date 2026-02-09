@@ -8,7 +8,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
 import { colors, spacing } from '../../styles';
 import { ChordPad, ChordVoices } from './ChordPad';
-import { useAudioEngine } from '../../hooks';
 import { useHarmonyStore } from '../../stores';
 import { ToneType } from '../../types';
 import { getEqualTemperamentFrequency, getJustIntonationFrequency } from '../../utils/pitchUtils';
@@ -71,6 +70,11 @@ interface ChordProgressionPadProps {
   keyIndex?: number;
   // キー変更ハンドラー（親から制御）
   onKeyChange?: (delta: number) => void;
+  // オーディオ関数（親から渡される）
+  startNote: (noteId: number, frequency: number, volume?: number, tone?: ToneType) => void;
+  stopNote: (noteId: number) => void;
+  stopAllNotes: () => void;
+  setNoteVolume: (noteId: number, volume: number) => void;
 }
 
 // MIDIノートから周波数を計算（平均律）
@@ -86,8 +90,11 @@ export const ChordProgressionPad: React.FC<ChordProgressionPadProps> = ({
   holdMode = false,
   keyIndex: externalKeyIndex,
   onKeyChange: externalOnKeyChange,
+  startNote,
+  stopNote,
+  stopAllNotes,
+  setNoteVolume,
 }) => {
-  const { startNote, stopNote, stopAllNotes, setNoteVolume } = useAudioEngine();
   const { tone } = useHarmonyStore();
   const [internalKeyIndex, setInternalKeyIndex] = useState(0); // 0 = C
   const keyIndex = externalKeyIndex !== undefined ? externalKeyIndex : internalKeyIndex;
