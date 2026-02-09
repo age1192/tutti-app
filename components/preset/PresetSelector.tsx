@@ -108,8 +108,14 @@ export function PresetSelector({ type, screenWidth = 800 }: PresetSelectorProps)
     }
   };
 
-  const handleLoad = (presetId: string) => {
+  const handleLoad = async (presetId: string) => {
     try {
+      // モーダルを閉じてから処理を実行（iOSでクラッシュを防ぐ）
+      setManagerVisible(false);
+      
+      // 少し待ってから処理を実行（モーダルのアニメーション完了を待つ）
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       const { metronomePresets, harmonyPresets, playbackPresets } = usePresetStore.getState();
       const presets = type === 'metronome' 
         ? metronomePresets 
@@ -120,6 +126,11 @@ export function PresetSelector({ type, screenWidth = 800 }: PresetSelectorProps)
 
       if (!preset) {
         console.warn('Preset not found:', presetId);
+        if (Platform.OS === 'web') {
+          window.alert('プリセットが見つかりませんでした');
+        } else {
+          Alert.alert('エラー', 'プリセットが見つかりませんでした');
+        }
         return;
       }
 
@@ -146,7 +157,12 @@ export function PresetSelector({ type, screenWidth = 800 }: PresetSelectorProps)
       }
     } catch (err) {
       console.error('Error loading preset:', err);
-      Alert.alert('エラー', 'プリセットの読み込みに失敗しました');
+      const errorMsg = err instanceof Error ? err.message : 'プリセットの読み込みに失敗しました';
+      if (Platform.OS === 'web') {
+        window.alert(errorMsg);
+      } else {
+        Alert.alert('エラー', errorMsg);
+      }
     }
   };
 

@@ -444,13 +444,32 @@ export function useAudioEngine() {
    */
   // AudioContextとマスターGainNodeの状態を確認・修復する関数
   const ensureAudioContextReady = useCallback(async (): Promise<boolean> => {
-    // 初期化中の場合は完了を待つ
+    // 初期化中の場合は完了を待つ（重要：最初にチェック）
     if (_isInitializing && _initPromise) {
       try {
         await _initPromise;
       } catch (e) {
         console.warn('[Audio] Initialization failed:', e);
         return false;
+      }
+    }
+
+    // 初期化がまだ開始されていない場合は待機（初期化が開始されるまで少し待つ）
+    if (!_sharedCtx && !_isInitializing) {
+      // 初期化が開始されるまで最大500ms待機
+      let waited = 0;
+      while (!_sharedCtx && !_isInitializing && waited < 500) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+        waited += 50;
+      }
+      // 初期化が開始された場合は完了を待つ
+      if (_initPromise) {
+        try {
+          await _initPromise;
+        } catch (e) {
+          console.warn('[Audio] Initialization failed:', e);
+          return false;
+        }
       }
     }
 
@@ -475,10 +494,16 @@ export function useAudioEngine() {
       }
     }
 
-    // AudioContextがsuspendedの場合は再開
+    // AudioContextがsuspendedの場合は再開（iOSで重要）
     if (ctx.state === 'suspended') {
       try {
         await ctx.resume();
+        // resume後、少し待ってから状態を確認
+        await new Promise(resolve => setTimeout(resolve, 10));
+        if (ctx.state === 'suspended') {
+          console.warn('[Audio] AudioContext still suspended after resume');
+          return false;
+        }
       } catch (e) {
         console.warn('[Audio] Failed to resume AudioContext:', e);
         return false;
@@ -981,29 +1006,56 @@ export function useAudioEngine() {
   );
 
   /**
-   * すべての音を停止（安全な実装）
+   * すべての音を停止（安全な実装、iOS対応）
    */
   const stopAllNotes = useCallback(() => {
     const ctx = _sharedCtx;
     if (!ctx || ctx.state === 'closed') return;
 
     try {
+      const currentTime = ctx.currentTime;
+      const releaseTime = 0.01; // 短いリリースタイム（iOSで確実に停止）
 
       // __note_ で始まるすべてのプロパティを削除
       const noteKeys = Object.keys(ctx).filter(key => key.startsWith('__note_'));
       noteKeys.forEach((key) => {
         try {
-          const noteId = parseInt(key.replace('__note_', ''), 10);
           const oscillator = (ctx as any)[key];
           if (oscillator) {
             const gainNode = (oscillator as any).__gainNode;
             if (gainNode) {
-              const currentTime = ctx.currentTime;
+              // ゲインを即座に0にしてから停止（iOSで音が残るのを防ぐ）
               gainNode.gain.cancelScheduledValues(currentTime);
-              gainNode.gain.setValueAtTime(0, currentTime);
+              gainNode.gain.setValueAtTime(gainNode.gain.value, currentTime);
+              gainNode.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
             }
+            
+            // 倍音も停止
+            const harmonic2 = (oscillator as any).__harmonic2;
+            const gain2 = (oscillator as any).__gain2;
+            if (harmonic2 && gain2) {
+              gain2.gain.cancelScheduledValues(currentTime);
+              gain2.gain.setValueAtTime(gain2.gain.value, currentTime);
+              gain2.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
+              try {
+                harmonic2.stop(currentTime + releaseTime + 0.01);
+              } catch (e) {}
+            }
+            
+            const harmonic3 = (oscillator as any).__harmonic3;
+            const gain3 = (oscillator as any).__gain3;
+            if (harmonic3 && gain3) {
+              gain3.gain.cancelScheduledValues(currentTime);
+              gain3.gain.setValueAtTime(gain3.gain.value, currentTime);
+              gain3.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
+              try {
+                harmonic3.stop(currentTime + releaseTime + 0.01);
+              } catch (e) {}
+            }
+
+            // オシレーターを停止
             try {
-              oscillator.stop();
+              oscillator.stop(currentTime + releaseTime + 0.01);
             } catch (e) {
               // 既に停止している場合は無視
             }
