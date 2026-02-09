@@ -894,19 +894,28 @@ export default function PlaybackScreen() {
     setMeasures(measures.filter((m) => m.id !== id));
   };
 
-  const handleSelectChord = (id: string, chordName: string) => {
-    const midiNotes = chordNameToMidiNotes(chordName, 4);
-    setUseSpecifiedVoicing(false); // ユーザー編集時は声部連結を使用
-    setCurrentTemplateId(null); // ユーザーが編集したらテンプレート状態を解除
-    setMeasures(
-      measures.map((m) =>
-        m.id === id
-          ? { ...m, chordName, midiNotes, hasCustomVoicing: false } // コード変更時はカスタムボイシングをリセット
-          : m
-      )
-    );
-    setSelectingMeasureId(null); // コード選択後はモーダルを閉じる
-  };
+  const handleSelectChord = useCallback((id: string, chordName: string) => {
+    try {
+      const midiNotes = chordNameToMidiNotes(chordName, 4);
+      setUseSpecifiedVoicing(false); // ユーザー編集時は声部連結を使用
+      setCurrentTemplateId(null); // ユーザーが編集したらテンプレート状態を解除
+      setMeasures((prevMeasures) =>
+        prevMeasures.map((m) =>
+          m.id === id
+            ? { ...m, chordName, midiNotes, hasCustomVoicing: false } // コード変更時はカスタムボイシングをリセット
+            : m
+        )
+      );
+      // モーダルを閉じる前に少し遅延を入れてiOSでのクラッシュを防ぐ
+      setTimeout(() => {
+        setSelectingMeasureId(null);
+      }, 100);
+    } catch (err) {
+      console.error('Select chord error:', err);
+      Alert.alert('エラー', 'コードの選択に失敗しました');
+      setSelectingMeasureId(null);
+    }
+  }, []);
 
   // ボイシング編集モーダルを開く
   const handleOpenVoicingEditor = (id: string) => {
@@ -1419,10 +1428,15 @@ export default function PlaybackScreen() {
         onRequestClose={() => {
           setSelectingMeasureId(null);
         }}
-        hardwareAccelerated={true}
+        hardwareAccelerated={false}
+        presentationStyle="overFullScreen"
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { height: dimensions.height * 0.9, maxHeight: dimensions.height * 0.95 }]}>
+          <View style={[styles.modalContent, { 
+            height: Math.min(dimensions.height * 0.9, 600), 
+            maxHeight: dimensions.height * 0.95,
+            maxWidth: dimensions.width * 0.95,
+          }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>コードを選択</Text>
               <Pressable

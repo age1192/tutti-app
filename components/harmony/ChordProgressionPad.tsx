@@ -420,22 +420,26 @@ const styles = StyleSheet.create({
   },
   padGrid: {
     flex: 1,
-    justifyContent: 'center', // 中央揃え
+    justifyContent: 'flex-start', // 中央から上寄せに変更
     alignItems: 'center',
-    gap: spacing.sm, // ギャップを少し広げる
+    gap: spacing.xs, // smからxsに変更して小さい画面に対応
     paddingTop: spacing.md, // 上部の余白を増やす（modeBarとの被り防止）
-    paddingBottom: spacing.md, // 下部の余白を増やす（タブバーとの被り防止）
+    paddingBottom: spacing.lg, // mdからlgに変更して下部の余白を増やす
+    minHeight: 0, // flexアイテムが縮小可能に
   },
   mainChords: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: spacing.sm, // ギャップを少し広げる
+    gap: spacing.xs, // smからxsに変更
+    flexWrap: 'wrap', // 小さい画面で折り返し可能に
+    marginBottom: spacing.xs, // 下段との間隔を確保
   },
   secondaryChords: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: spacing.sm, // ギャップを少し広げる
+    gap: spacing.xs, // smからxsに変更
+    flexWrap: 'wrap', // 小さい画面で折り返し可能に
   },
 });

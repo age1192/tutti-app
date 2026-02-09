@@ -462,18 +462,23 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
     borderBottomWidth: 1,
     borderBottomColor: colors.border.default,
+    flexWrap: 'wrap', // 小さい画面で折り返し可能に
   },
   controlGroup: {
     flexDirection: 'row',
     gap: spacing.sm,
+    flexShrink: 1, // 小さい画面で縮小可能に
+    flexWrap: 'wrap', // 必要に応じて折り返し
   },
   controlButton: {
     alignItems: 'center',
     paddingVertical: 12,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md, // lgからmdに変更して小さい画面に対応
     backgroundColor: colors.background.tertiary,
     borderRadius: 12,
-    minWidth: 90,
+    minWidth: 70, // 90から70に変更
+    maxWidth: 90, // 最大幅を設定
+    flexShrink: 1, // 小さい画面で縮小可能に
   },
   controlButtonText: {
     fontSize: 24,
@@ -490,6 +495,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: spacing.md, // 音色ボタンとの間隔を広げる
+    flexShrink: 1, // 小さい画面で縮小可能に
   },
   presetLabel: {
     fontSize: 13,
@@ -534,8 +540,9 @@ const styles = StyleSheet.create({
     flex: 2,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: spacing.md, // smからmdに変更
-    paddingTop: spacing.lg, // 上に余白を追加してBPM表示を真ん中に
+    gap: spacing.sm, // mdからsmに変更して小さい画面に対応
+    paddingTop: spacing.md, // lgからmdに変更
+    paddingBottom: spacing.sm, // 下に余白を追加して再生ボタンが切れないように
   },
   tempoDisplay: {
     flexDirection: 'row',
@@ -601,9 +608,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   playButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 70, // 80から70に変更して小さい画面に対応
+    height: 70, // 80から70に変更
+    borderRadius: 35, // 40から35に変更
     backgroundColor: colors.functional.rhythm,
     justifyContent: 'center',
     alignItems: 'center',
@@ -617,11 +624,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.functional.stop,
   },
   playButtonText: {
-    fontSize: 36,
+    fontSize: 32, // 36から32に変更して小さい画面に対応
     color: '#FFFFFF',
     fontWeight: '700',
     textAlign: 'center',
-    lineHeight: 36,
+    lineHeight: 32, // 36から32に変更
     paddingLeft: 2, // 三角を中央に調整
   },
   beatIndicatorContainer: {

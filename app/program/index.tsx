@@ -88,11 +88,26 @@ export default function ProgramListScreen() {
 
     try {
       const program = await createProgram(newProgramName.trim());
+      if (!program || !program.id) {
+        throw new Error('プログラムの作成に失敗しました');
+      }
       setShowNewModal(false);
       setNewProgramName('');
-      router.push(`/program/${program.id}`);
+      // iOSでrouter.pushが失敗する可能性があるため、try-catchで囲む
+      try {
+        router.push(`/program/${program.id}`);
+      } catch (routerError) {
+        console.error('Router push error:', routerError);
+        // フォールバック: プログラムを設定してからナビゲート
+        setCurrentProgram(program);
+        setTimeout(() => {
+          router.push(`/program/${program.id}`);
+        }, 100);
+      }
     } catch (err) {
-      Alert.alert('エラー', 'プログラムの作成に失敗しました');
+      console.error('Create program error:', err);
+      const errorMsg = err instanceof Error ? err.message : 'プログラムの作成に失敗しました';
+      Alert.alert('エラー', errorMsg);
     }
   };
 

@@ -178,18 +178,20 @@ export function PresetSelector({ type }: PresetSelectorProps) {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    gap: spacing.md, // smからmdに変更して間隔を広げる
+    gap: spacing.xs, // mdからxsに変更して小さい画面に対応
+    flexShrink: 1, // 小さい画面で縮小可能に
   },
   button: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm, // mdからsmに変更
+    paddingVertical: spacing.xs, // smからxsに変更
     borderRadius: 8,
     backgroundColor: colors.accent.primary,
+    minWidth: 50, // 最小幅を設定
   },
   buttonText: {
-    fontSize: 14,
+    fontSize: 12, // 14から12に変更して小さい画面に対応
     color: colors.background.secondary,
-    fontWeight: '700', // 600から700に変更してボールドに
+    fontWeight: '700',
   },
   modalOverlay: {
     flex: 1,
