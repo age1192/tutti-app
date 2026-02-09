@@ -113,7 +113,30 @@ const styles = StyleSheet.create({
 
 ---
 
-## 4. 音声エンジン
+## 4. Git操作（Windows ↔ Mac）
+
+Windows PCとMac間でコードを同期するためのGit操作手順については、[GIT_WORKFLOW.md](./GIT_WORKFLOW.md)を参照してください。
+
+### クイックリファレンス
+
+**Windows側（変更をプッシュ）**
+```powershell
+git add .
+git commit -m "変更内容"
+git push origin main
+```
+
+**Mac側（変更を取得）**
+```bash
+git pull origin main
+npx expo start
+```
+
+詳細な手順とトラブルシューティングは[GIT_WORKFLOW.md](./GIT_WORKFLOW.md)を参照してください。
+
+---
+
+## 5. 音声エンジン
 
 ### 4.1 react-native-audio-api の使い方
 
@@ -173,7 +196,7 @@ const justIntonationRatios: Record<number, number> = {
 
 ---
 
-## 5. 状態管理（Zustand）
+## 6. 状態管理（Zustand）
 
 ### 5.1 ストア作成例
 
@@ -232,7 +255,7 @@ const MyComponent = () => {
 
 ---
 
-## 7. ビルドとデプロイ
+## 8. ビルドとデプロイ
 
 ### 7.1 開発ビルド
 
@@ -254,7 +277,7 @@ npx eas build --platform android
 
 ---
 
-## 8. トラブルシューティング
+## 9. トラブルシューティング
 
 ### 8.1 よくある問題
 

@@ -45,7 +45,14 @@ export function PresetManager({ visible, onClose, type, onSelect }: PresetManage
 
   useEffect(() => {
     if (visible) {
-      loadAllPresets();
+      try {
+        loadAllPresets().catch((err) => {
+          console.error('Failed to load presets:', err);
+          // エラーが発生してもモーダルは表示し続ける
+        });
+      } catch (err) {
+        console.error('Error in loadAllPresets effect:', err);
+      }
     }
   }, [visible, loadAllPresets]);
 
@@ -53,12 +60,17 @@ export function PresetManager({ visible, onClose, type, onSelect }: PresetManage
     const confirmMessage = 'このプリセットを削除しますか？';
     if (Platform.OS === 'web') {
       if (window.confirm(confirmMessage)) {
-        if (type === 'metronome') {
-          deleteMetronomePreset(id);
-        } else if (type === 'harmony') {
-          deleteHarmonyPreset(id);
-        } else {
-          deletePlaybackPreset(id);
+        try {
+          if (type === 'metronome') {
+            deleteMetronomePreset(id);
+          } else if (type === 'harmony') {
+            deleteHarmonyPreset(id);
+          } else {
+            deletePlaybackPreset(id);
+          }
+        } catch (err) {
+          console.error('Error deleting preset:', err);
+          window.alert('プリセットの削除に失敗しました');
         }
       }
     } else {
@@ -68,12 +80,17 @@ export function PresetManager({ visible, onClose, type, onSelect }: PresetManage
           text: '削除',
           style: 'destructive',
           onPress: () => {
-            if (type === 'metronome') {
-              deleteMetronomePreset(id);
-            } else if (type === 'harmony') {
-              deleteHarmonyPreset(id);
-            } else {
-              deletePlaybackPreset(id);
+            try {
+              if (type === 'metronome') {
+                deleteMetronomePreset(id);
+              } else if (type === 'harmony') {
+                deleteHarmonyPreset(id);
+              } else {
+                deletePlaybackPreset(id);
+              }
+            } catch (err) {
+              console.error('Error deleting preset:', err);
+              Alert.alert('エラー', 'プリセットの削除に失敗しました');
             }
           },
         },
@@ -82,8 +99,17 @@ export function PresetManager({ visible, onClose, type, onSelect }: PresetManage
   };
 
   const handleSelect = (presetId: string) => {
-    onSelect?.(presetId);
-    onClose();
+    try {
+      onSelect?.(presetId);
+      // モーダルを閉じる前に少し遅延を入れてiOSでのクラッシュを防ぐ
+      setTimeout(() => {
+        onClose();
+      }, 100);
+    } catch (err) {
+      console.error('Error selecting preset:', err);
+      Alert.alert('エラー', 'プリセットの選択に失敗しました');
+      onClose();
+    }
   };
 
   return (

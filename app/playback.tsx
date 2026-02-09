@@ -975,18 +975,22 @@ export default function PlaybackScreen() {
         metronomeEnabled,
       });
       setPresetName('');
-      setSavePresetModalVisible(false);
-      if (Platform.OS === 'web') {
-        window.alert('プリセットを保存しました');
-      } else {
-        Alert.alert('完了', 'プリセットを保存しました');
-      }
+      // モーダルを閉じる前に少し遅延を入れてiOSでのクラッシュを防ぐ
+      setTimeout(() => {
+        setSavePresetModalVisible(false);
+        if (Platform.OS === 'web') {
+          window.alert('プリセットを保存しました');
+        } else {
+          Alert.alert('完了', 'プリセットを保存しました');
+        }
+      }, 100);
     } catch (error) {
       console.error('Failed to save preset:', error);
+      const errorMsg = error instanceof Error ? error.message : 'プリセットの保存に失敗しました';
       if (Platform.OS === 'web') {
-        window.alert('プリセットの保存に失敗しました');
+        window.alert(errorMsg);
       } else {
-        Alert.alert('エラー', 'プリセットの保存に失敗しました');
+        Alert.alert('エラー', errorMsg);
       }
     }
   };
@@ -1075,7 +1079,15 @@ export default function PlaybackScreen() {
                 style={styles.chordTableCell}
                 onPress={() => {
                   if (selectingMeasureId) {
-                    handleSelectChord(selectingMeasureId, chordName);
+                    try {
+                      handleSelectChord(selectingMeasureId, chordName);
+                    } catch (err) {
+                      console.error('Error selecting chord:', err);
+                      Alert.alert('エラー', 'コードの選択に失敗しました');
+                      setTimeout(() => {
+                        setSelectingMeasureId(null);
+                      }, 100);
+                    }
                   }
                 }}
               >
@@ -1426,7 +1438,14 @@ export default function PlaybackScreen() {
         transparent
         animationType="fade"
         onRequestClose={() => {
-          setSelectingMeasureId(null);
+          try {
+            setTimeout(() => {
+              setSelectingMeasureId(null);
+            }, 100);
+          } catch (err) {
+            console.error('Error closing modal:', err);
+            setSelectingMeasureId(null);
+          }
         }}
         hardwareAccelerated={false}
         presentationStyle="overFullScreen"
@@ -1439,14 +1458,22 @@ export default function PlaybackScreen() {
           }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>コードを選択</Text>
-              <Pressable
-                style={styles.modalCloseIconButton}
-                onPress={() => {
+            <Pressable
+              style={styles.modalCloseIconButton}
+              onPress={() => {
+                try {
+                  // iOSでのクラッシュを防ぐため、少し遅延を入れる
+                  setTimeout(() => {
+                    setSelectingMeasureId(null);
+                  }, 100);
+                } catch (err) {
+                  console.error('Error closing modal:', err);
                   setSelectingMeasureId(null);
-                }}
-              >
-                <Text style={styles.modalCloseIconText}>×</Text>
-              </Pressable>
+                }
+              }}
+            >
+              <Text style={styles.modalCloseIconText}>×</Text>
+            </Pressable>
             </View>
             
             {/* コード選択テーブル（12音×派生コード） */}
@@ -1463,7 +1490,15 @@ export default function PlaybackScreen() {
             <Pressable 
               style={styles.modalCloseButton} 
               onPress={() => {
-                setSelectingMeasureId(null);
+                try {
+                  // iOSでのクラッシュを防ぐため、少し遅延を入れる
+                  setTimeout(() => {
+                    setSelectingMeasureId(null);
+                  }, 100);
+                } catch (err) {
+                  console.error('Error closing modal:', err);
+                  setSelectingMeasureId(null);
+                }
               }}
             >
               <Text style={styles.modalCloseText}>キャンセル</Text>

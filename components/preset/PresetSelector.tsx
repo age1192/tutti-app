@@ -1,7 +1,7 @@
 /**
  * プリセット選択UI
  */
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, Modal, Alert, Platform } from 'react-native';
 import { colors, typography, spacing } from '../../styles';
 import { PresetManager } from './PresetManager';
@@ -11,12 +11,31 @@ import { useHarmonyStore } from '../../stores/useHarmonyStore';
 
 interface PresetSelectorProps {
   type: 'metronome' | 'harmony' | 'playback';
+  screenWidth?: number;
 }
 
-export function PresetSelector({ type }: PresetSelectorProps) {
+export function PresetSelector({ type, screenWidth = 800 }: PresetSelectorProps) {
   const [managerVisible, setManagerVisible] = useState(false);
   const [saveModalVisible, setSaveModalVisible] = useState(false);
   const [presetName, setPresetName] = useState('');
+
+  // 画面幅に応じた動的スタイル計算
+  const dynamicStyles = useMemo(() => {
+    const isSmallScreen = screenWidth < 400;
+    const isLargeScreen = screenWidth >= 800;
+    
+    return {
+      button: {
+        paddingHorizontal: isSmallScreen ? spacing.xs : isLargeScreen ? spacing.md : spacing.sm,
+        paddingVertical: isSmallScreen ? 4 : isLargeScreen ? 8 : 6,
+        borderRadius: isSmallScreen ? 6 : isLargeScreen ? 10 : 8,
+        minWidth: isSmallScreen ? 45 : isLargeScreen ? 70 : 55,
+      },
+      buttonText: {
+        fontSize: isSmallScreen ? 11 : isLargeScreen ? 15 : 13,
+      },
+    };
+  }, [screenWidth]);
 
   const { 
     saveMetronomePreset, 
@@ -72,64 +91,76 @@ export function PresetSelector({ type }: PresetSelectorProps) {
         throw new Error('Playback preset save should be handled by parent component');
       }
       setPresetName('');
-      setSaveModalVisible(false);
-      if (Platform.OS === 'web') {
-        window.alert('プリセットを保存しました');
-      } else {
-        Alert.alert('完了', 'プリセットを保存しました');
-      }
+      // モーダルを閉じる前に少し遅延を入れてiOSでのクラッシュを防ぐ
+      setTimeout(() => {
+        setSaveModalVisible(false);
+        if (Platform.OS === 'web') {
+          window.alert('プリセットを保存しました');
+        } else {
+          Alert.alert('完了', 'プリセットを保存しました');
+        }
+      }, 100);
     } catch (error) {
       console.error('Failed to save preset:', error);
+      const errorMsg = error instanceof Error ? error.message : 'プリセットの保存に失敗しました';
       if (Platform.OS === 'web') {
-        window.alert('プリセットの保存に失敗しました');
+        window.alert(errorMsg);
       } else {
-        Alert.alert('エラー', 'プリセットの保存に失敗しました');
+        Alert.alert('エラー', errorMsg);
       }
     }
   };
 
   const handleLoad = (presetId: string) => {
-    const { metronomePresets, harmonyPresets, playbackPresets } = usePresetStore.getState();
-    const presets = type === 'metronome' 
-      ? metronomePresets 
-      : type === 'harmony' 
-      ? harmonyPresets 
-      : playbackPresets;
-    const preset = presets.find((p) => p.id === presetId);
+    try {
+      const { metronomePresets, harmonyPresets, playbackPresets } = usePresetStore.getState();
+      const presets = type === 'metronome' 
+        ? metronomePresets 
+        : type === 'harmony' 
+        ? harmonyPresets 
+        : playbackPresets;
+      const preset = presets.find((p) => p.id === presetId);
 
-    if (!preset) return;
+      if (!preset) {
+        console.warn('Preset not found:', presetId);
+        return;
+      }
 
-    if (type === 'metronome') {
-      const metronomePreset = preset as typeof metronomePresets[0];
-      const { setTempo, setTimeSignature, setSubdivisionVolume, setTone } = useMetronomeStore.getState();
-      setTempo(metronomePreset.tempo);
-      setTimeSignature(metronomePreset.timeSignature);
-      Object.entries(metronomePreset.subdivisionSettings).forEach(([key, value]) => {
-        setSubdivisionVolume(key as any, value);
-      });
-      setTone(metronomePreset.tone);
-    } else if (type === 'harmony') {
-      const harmonyPreset = preset as typeof harmonyPresets[0];
-      const { setTuning, setTone, setBasePitch, setOctave, setTranspose } = useHarmonyStore.getState();
-      setTuning(harmonyPreset.tuning);
-      setTone(harmonyPreset.tone);
-      setBasePitch(harmonyPreset.basePitch);
-      setOctave(harmonyPreset.octave);
-      setTranspose(harmonyPreset.transpose as any);
-    } else {
-      // playback用のプリセット読み込みは呼び出し側で実装
-      onSelect?.(presetId);
+      if (type === 'metronome') {
+        const metronomePreset = preset as typeof metronomePresets[0];
+        const { setTempo, setTimeSignature, setSubdivisionVolume, setTone } = useMetronomeStore.getState();
+        setTempo(metronomePreset.tempo);
+        setTimeSignature(metronomePreset.timeSignature);
+        Object.entries(metronomePreset.subdivisionSettings).forEach(([key, value]) => {
+          setSubdivisionVolume(key as any, value);
+        });
+        setTone(metronomePreset.tone);
+      } else if (type === 'harmony') {
+        const harmonyPreset = preset as typeof harmonyPresets[0];
+        const { setTuning, setTone, setBasePitch, setOctave, setTranspose } = useHarmonyStore.getState();
+        setTuning(harmonyPreset.tuning);
+        setTone(harmonyPreset.tone);
+        setBasePitch(harmonyPreset.basePitch);
+        setOctave(harmonyPreset.octave);
+        setTranspose(harmonyPreset.transpose as any);
+      } else {
+        // playback用のプリセット読み込みは呼び出し側で実装
+        onSelect?.(presetId);
+      }
+    } catch (err) {
+      console.error('Error loading preset:', err);
+      Alert.alert('エラー', 'プリセットの読み込みに失敗しました');
     }
   };
 
   return (
     <>
       <View style={styles.container}>
-        <Pressable style={styles.button} onPress={() => setSaveModalVisible(true)}>
-          <Text style={styles.buttonText}>保存</Text>
+        <Pressable style={[styles.button, dynamicStyles.button]} onPress={() => setSaveModalVisible(true)}>
+          <Text style={[styles.buttonText, dynamicStyles.buttonText]}>保存</Text>
         </Pressable>
-        <Pressable style={styles.button} onPress={() => setManagerVisible(true)}>
-          <Text style={styles.buttonText}>読み込み</Text>
+        <Pressable style={[styles.button, dynamicStyles.button]} onPress={() => setManagerVisible(true)}>
+          <Text style={[styles.buttonText, dynamicStyles.buttonText]}>読み込み</Text>
         </Pressable>
       </View>
 
@@ -178,18 +209,13 @@ export function PresetSelector({ type }: PresetSelectorProps) {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    gap: spacing.xs, // mdからxsに変更して小さい画面に対応
-    flexShrink: 1, // 小さい画面で縮小可能に
+    gap: spacing.xs,
+    flexShrink: 1,
   },
   button: {
-    paddingHorizontal: spacing.sm, // mdからsmに変更
-    paddingVertical: spacing.xs, // smからxsに変更
-    borderRadius: 8,
     backgroundColor: colors.accent.primary,
-    minWidth: 50, // 最小幅を設定
   },
   buttonText: {
-    fontSize: 12, // 14から12に変更して小さい画面に対応
     color: colors.background.secondary,
     fontWeight: '700',
   },

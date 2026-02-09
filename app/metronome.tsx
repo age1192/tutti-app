@@ -82,6 +82,7 @@ export default function MetronomeScreen() {
   // 画面サイズ
   const [dimensions, setDimensions] = useState(Dimensions.get('window'));
   const isLandscape = dimensions.width > dimensions.height;
+  const screenWidth = dimensions.width;
 
   // 画面サイズ変更を監視
   useEffect(() => {
@@ -90,6 +91,39 @@ export default function MetronomeScreen() {
     });
     return () => subscription.remove();
   }, []);
+
+  // 画面幅に応じた動的スタイル計算
+  const dynamicStyles = useMemo(() => {
+    // 小さい画面（iPhone SE等: 幅 < 400px）
+    const isSmallScreen = screenWidth < 400;
+    // 大きい画面（タブレット等: 幅 >= 800px）
+    const isLargeScreen = screenWidth >= 800;
+    
+    return {
+      controlButton: {
+        paddingVertical: isSmallScreen ? 8 : isLargeScreen ? 12 : 10,
+        paddingHorizontal: isSmallScreen ? spacing.sm : isLargeScreen ? spacing.md : spacing.sm,
+        borderRadius: isSmallScreen ? 10 : isLargeScreen ? 12 : 11,
+        minWidth: isSmallScreen ? 60 : isLargeScreen ? 75 : 70,
+        maxWidth: isSmallScreen ? 75 : isLargeScreen ? 90 : 80,
+        backgroundColor: colors.background.tertiary, // 明示的に背景色を設定
+      },
+      controlButtonText: {
+        fontSize: isSmallScreen ? 20 : isLargeScreen ? 24 : 22,
+      },
+      controlLabel: {
+        fontSize: isSmallScreen ? 11 : isLargeScreen ? 13 : 12,
+        marginTop: isSmallScreen ? 2 : isLargeScreen ? 4 : 3,
+      },
+      presetLabel: {
+        fontSize: isSmallScreen ? 11 : isLargeScreen ? 13 : 12,
+        marginBottom: isSmallScreen ? 2 : isLargeScreen ? 4 : 3,
+      },
+      presetContainer: {
+        marginLeft: isSmallScreen ? spacing.sm : isLargeScreen ? spacing.md : spacing.sm,
+      },
+    };
+  }, [screenWidth]);
 
   // 画面に入った時にメトロノーム停止と設定適用（画面向きはhome.tsxで管理）
   useFocusEffect(
@@ -189,35 +223,35 @@ export default function MetronomeScreen() {
         <View style={styles.controlGroup}>
           {/* 拍子選択 */}
           <Pressable
-            style={styles.controlButton}
+            style={[styles.controlButton, dynamicStyles.controlButton]}
             onPress={() => setTimeSignatureModalVisible(true)}
           >
-            <Text style={styles.controlButtonText}>
+            <Text style={[styles.controlButtonText, dynamicStyles.controlButtonText]}>
               {timeSignature.numerator}/{timeSignature.denominator}
             </Text>
-            <Text style={styles.controlLabel}>拍子</Text>
+            <Text style={[styles.controlLabel, dynamicStyles.controlLabel]}>拍子</Text>
           </Pressable>
 
           {/* 拍分割 */}
           <Pressable
-            style={styles.controlButton}
+            style={[styles.controlButton, dynamicStyles.controlButton]}
             onPress={() => setSubdivisionModalVisible(true)}
           >
-            <Text style={styles.controlButtonText}>♩♪</Text>
-            <Text style={styles.controlLabel}>拍分割</Text>
+            <Text style={[styles.controlButtonText, dynamicStyles.controlButtonText]}>♩♪</Text>
+            <Text style={[styles.controlLabel, dynamicStyles.controlLabel]}>拍分割</Text>
           </Pressable>
 
           {/* プログラム */}
           <Link href="/program" asChild>
-            <Pressable style={styles.controlButton}>
-              <Text style={styles.controlButtonText}>PRG</Text>
-              <Text style={styles.controlLabel}>プログラム</Text>
+            <Pressable style={[styles.controlButton, dynamicStyles.controlButton]}>
+              <Text style={[styles.controlButtonText, dynamicStyles.controlButtonText]}>PRG</Text>
+              <Text style={[styles.controlLabel, dynamicStyles.controlLabel]} numberOfLines={1}>プログラム</Text>
             </Pressable>
           </Link>
 
           {/* 音色選択 */}
           <Pressable
-            style={styles.controlButton}
+            style={[styles.controlButton, dynamicStyles.controlButton]}
             onPress={() => {
               const tones: MetronomeToneType[] = ['default', 'hard', 'wood'];
               const currentIndex = tones.indexOf(tone);
@@ -225,18 +259,18 @@ export default function MetronomeScreen() {
               setTone(tones[nextIndex]);
             }}
           >
-            <Text style={styles.controlButtonText}>
+            <Text style={[styles.controlButtonText, dynamicStyles.controlButtonText]}>
               {tone === 'default' ? '♪' : tone === 'hard' ? '■' : '♫'}
             </Text>
-            <Text style={styles.controlLabel}>
-              {tone === 'default' ? '音色: 通常' : tone === 'hard' ? '音色: 硬め' : '音色: 木'}
+            <Text style={[styles.controlLabel, dynamicStyles.controlLabel]} numberOfLines={1}>
+              {tone === 'default' ? '通常' : tone === 'hard' ? '硬め' : '木'}
             </Text>
           </Pressable>
 
           {/* プリセット */}
-          <View style={styles.presetContainer}>
-            <Text style={styles.presetLabel}>プリセット</Text>
-            <PresetSelector type="metronome" />
+          <View style={[styles.presetContainer, dynamicStyles.presetContainer]}>
+            <Text style={[styles.presetLabel, dynamicStyles.presetLabel]}>プリセット</Text>
+            <PresetSelector type="metronome" screenWidth={screenWidth} />
           </View>
         </View>
 
@@ -472,35 +506,25 @@ const styles = StyleSheet.create({
   },
   controlButton: {
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: spacing.md, // lgからmdに変更して小さい画面に対応
     backgroundColor: colors.background.tertiary,
-    borderRadius: 12,
-    minWidth: 70, // 90から70に変更
-    maxWidth: 90, // 最大幅を設定
     flexShrink: 1, // 小さい画面で縮小可能に
+    borderRadius: 12, // デフォルト値（動的スタイルで上書きされる）
   },
   controlButtonText: {
-    fontSize: 24,
     fontWeight: '700',
     color: colors.functional.rhythm,
   },
   controlLabel: {
-    fontSize: 13,
     color: colors.text.muted,
-    marginTop: 4,
     fontWeight: '500',
   },
   presetContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: spacing.md, // 音色ボタンとの間隔を広げる
     flexShrink: 1, // 小さい画面で縮小可能に
   },
   presetLabel: {
-    fontSize: 13,
     color: colors.text.muted,
-    marginBottom: 4,
     fontWeight: '500',
   },
   modeToggle: {

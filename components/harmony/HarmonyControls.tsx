@@ -2,8 +2,8 @@
  * ハーモニーのコントロールパネル
  * ボタンサイズを大きく、トランスポーズUI改善
  */
-import { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Modal } from 'react-native';
+import { useState, useEffect, useMemo } from 'react';
+import { View, Text, StyleSheet, Pressable, ScrollView, Modal, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, typography, spacing } from '../../styles';
 import { TuningType, ToneType } from '../../types';
@@ -61,8 +61,17 @@ export function HarmonyControls({
 }: HarmonyControlsProps) {
   const insets = useSafeAreaInsets();
   const [showTransposeModal, setShowTransposeModal] = useState(false);
+  const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
   const canGoLower = octave > OCTAVE_MIN;
   const canGoHigher = octave < OCTAVE_MAX - 1;
+
+  // 画面サイズ変更を監視
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenWidth(window.width);
+    });
+    return () => subscription.remove();
+  }, []);
 
   // 横画面時はヘッダー上の余白を最小に（縦画面時のみ SafeArea を適用）
   const topPadding = isLandscape ? 4 : Math.max(insets.top, spacing.sm);
@@ -211,7 +220,7 @@ export function HarmonyControls({
           {/* プリセット */}
           <View style={styles.block}>
             <Text style={styles.label}>プリセット</Text>
-            <PresetSelector type="harmony" />
+            <PresetSelector type="harmony" screenWidth={screenWidth} />
           </View>
         </ScrollView>
       </View>

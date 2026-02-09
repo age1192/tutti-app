@@ -122,26 +122,29 @@ export const ChordProgressionPad: React.FC<ChordProgressionPadProps> = ({
   // 動的パッドサイズ計算（I IV Vを大きく）
   const { mainPadSize, secondaryPadSize } = useMemo(() => {
     const availableWidth = screenWidth - 32; // 左右余白
-    // ヘッダー(コントロール約80px) + モードバー(44px) + タブバー(68px) + 余白
-    // topBarはmodeBarと同じ行に配置するので高さに含めない
-    const availableHeight = screenHeight - 200; 
+    // 小さい画面（iPhone SE等）に対応：より正確な高さ計算
+    // ヘッダー(コントロール約60-80px) + モードバー(36px) + タブバー(68px) + 余白(20px)
+    const headerHeight = screenHeight < 700 ? 140 : 200; // 小さい画面では140px
+    const availableHeight = screenHeight - headerHeight;
     
-    // メイン（I IV V）: 3個 + 2個のギャップ（各8px）
-    const mainWidthBased = Math.floor((availableWidth - 16) / 3);
-    // セカンダリ（ii iii vi vii°）: 4個 + 3個のギャップ（各8px）
-    const secondaryWidthBased = Math.floor((availableWidth - 24) / 4);
+    // メイン（I IV V）: 3個 + 2個のギャップ（各4px）
+    const mainWidthBased = Math.floor((availableWidth - 8) / 3);
+    // セカンダリ（ii iii vi vii°）: 4個 + 3個のギャップ（各4px）
+    const secondaryWidthBased = Math.floor((availableWidth - 12) / 4);
     
-    // 縦: 2行 + ギャップ（8px）
-    const maxHeightBased = Math.floor((availableHeight - 8) / 2);
+    // 縦: 2行 + ギャップ（4px）+ 上下余白（各8px）
+    const maxHeightBased = Math.floor((availableHeight - 20) / 2);
     
-    // サイズを適切に設定（I,IV,Vは大きめ、ii,iii,vi,vii°は小さめ）
-    // より大きなサイズを確保
-    const mainSize = Math.min(mainWidthBased, maxHeightBased, 150); // 最大150px
-    const secondarySize = Math.min(secondaryWidthBased, Math.floor(maxHeightBased * 0.8), 110); // 最大110px
+    // サイズを適切に設定（小さい画面ではより小さく）
+    const maxMainSize = screenHeight < 700 ? 100 : 150; // 小さい画面では最大100px
+    const maxSecondarySize = screenHeight < 700 ? 75 : 110; // 小さい画面では最大75px
+    
+    const mainSize = Math.min(mainWidthBased, maxHeightBased, maxMainSize);
+    const secondarySize = Math.min(secondaryWidthBased, Math.floor(maxHeightBased * 0.75), maxSecondarySize);
     
     return {
-      mainPadSize: Math.max(mainSize, 120), // 最小120px（以前より大きく）
-      secondaryPadSize: Math.max(secondarySize, 85), // 最小85px（以前より大きく）
+      mainPadSize: Math.max(mainSize, screenHeight < 700 ? 80 : 100), // 小さい画面では最小80px
+      secondaryPadSize: Math.max(secondarySize, screenHeight < 700 ? 60 : 75), // 小さい画面では最小60px
     };
   }, [screenWidth, screenHeight]);
 
@@ -420,26 +423,27 @@ const styles = StyleSheet.create({
   },
   padGrid: {
     flex: 1,
-    justifyContent: 'flex-start', // 中央から上寄せに変更
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    gap: spacing.xs, // smからxsに変更して小さい画面に対応
-    paddingTop: spacing.md, // 上部の余白を増やす（modeBarとの被り防止）
-    paddingBottom: spacing.lg, // mdからlgに変更して下部の余白を増やす
-    minHeight: 0, // flexアイテムが縮小可能に
+    gap: 4, // spacing.xsから4pxに変更してより小さく
+    paddingTop: spacing.sm, // mdからsmに変更
+    paddingBottom: spacing.md, // lgからmdに変更
+    minHeight: 0,
   },
   mainChords: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: spacing.xs, // smからxsに変更
-    flexWrap: 'wrap', // 小さい画面で折り返し可能に
-    marginBottom: spacing.xs, // 下段との間隔を確保
+    gap: 4, // spacing.xsから4pxに変更
+    flexWrap: 'wrap',
+    marginBottom: 4, // spacing.xsから4pxに変更
   },
   secondaryChords: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: spacing.xs, // smからxsに変更
-    flexWrap: 'wrap', // 小さい画面で折り返し可能に
+    gap: 4, // spacing.xsから4pxに変更
+    flexWrap: 'wrap',
+    marginTop: 4, // 上段との間隔を明示的に設定
   },
 });
