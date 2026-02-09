@@ -8,9 +8,26 @@ import { Platform } from 'react-native';
 // react-native-audio-apiのインポート（エラーハンドリング付き）
 let AudioContext: any = null;
 try {
-  AudioContext = require('react-native-audio-api').AudioContext;
+  // useTuner.tsと同じ方法でインポート
+  const audioApiModule = require('react-native-audio-api');
+  console.log('[Audio] react-native-audio-api module loaded:', !!audioApiModule);
+  console.log('[Audio] Available exports:', Object.keys(audioApiModule || {}));
+  
+  // AudioContextを取得
+  AudioContext = audioApiModule?.AudioContext || audioApiModule?.default?.AudioContext;
+  
+  if (AudioContext) {
+    console.log('[Audio] AudioContext imported successfully');
+  } else {
+    console.error('[Audio] AudioContext is null!');
+    console.error('[Audio] Module structure:', JSON.stringify(audioApiModule, null, 2));
+  }
 } catch (e) {
-  console.warn('react-native-audio-api is not available:', e);
+  console.error('[Audio] Failed to import react-native-audio-api:', e);
+  if (e instanceof Error) {
+    console.error('[Audio] Error message:', e.message);
+    console.error('[Audio] Error stack:', e.stack);
+  }
 }
 import { ToneType, MetronomeToneType } from '../types';
 import { useSettingsStore } from '../stores/useSettingsStore';
@@ -83,15 +100,18 @@ export function useAudioEngine() {
             });
 
             let isAudioSupported = false;
+            console.log('[Audio] Checking AudioContext availability:', AudioContext ? 'available' : 'null');
             if (AudioContext) {
               // 再度チェック（他のスレッドが既に作成した可能性がある）
               if (_sharedCtx && _sharedCtx.state !== 'closed') {
                 isAudioSupported = true;
-                console.log('[Audio] Reusing existing shared AudioContext');
+                console.log('[Audio] Reusing existing shared AudioContext, state:', _sharedCtx.state);
               } else {
                 // 新しいAudioContextを作成（初回のみ、または前回が閉じられた場合）
                 try {
+                  console.log('[Audio] Creating new AudioContext...');
                   const ctx = new AudioContext();
+                  console.log('[Audio] AudioContext created, state:', ctx?.state);
                   _sharedCtx = ctx;
                   
                   const masterGain = ctx.createGain();
@@ -101,14 +121,16 @@ export function useAudioEngine() {
                   
                   _sharedActiveNoteCount = 0;
                   isAudioSupported = true;
-                  console.log('[Audio] AudioContext initialized successfully (singleton)');
+                  console.log('[Audio] AudioContext initialized successfully (singleton), state:', ctx.state);
                 } catch (e) {
-                  console.warn('[Audio] Failed to create AudioContext:', e);
+                  console.error('[Audio] Failed to create AudioContext:', e);
+                  console.error('[Audio] Error stack:', e instanceof Error ? e.stack : 'no stack');
                   isAudioSupported = false;
                 }
               }
             } else {
-              console.warn('[Audio] react-native-audio-api is not available.');
+              console.error('[Audio] react-native-audio-api AudioContext is null!');
+              console.error('[Audio] Platform:', Platform.OS);
               isAudioSupported = false;
             }
 
