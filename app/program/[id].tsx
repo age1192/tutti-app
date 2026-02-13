@@ -128,8 +128,15 @@ export default function ProgramEditorScreen() {
 
   // セクション編集を開始
   const handleEditSection = (section: Section) => {
-    setEditingSection(section);
-    setIsEditing(true);
+    if (Platform.OS === 'ios') {
+      requestAnimationFrame(() => {
+        setEditingSection(section);
+        setIsEditing(true);
+      });
+    } else {
+      setEditingSection(section);
+      setIsEditing(true);
+    }
   };
 
   // セクション編集を保存

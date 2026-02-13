@@ -27,6 +27,23 @@ export const QRCodeImportModal: React.FC<QRCodeImportModalProps> = ({
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
+
+  // iOS: モーダル表示完了後にカメラをマウント（同時マウントでクラッシュする場合がある）
+  useEffect(() => {
+    if (visible && permission?.granted) {
+      const timer = setTimeout(() => setShowCamera(true), 400);
+      return () => {
+        clearTimeout(timer);
+        setShowCamera(false);
+        setCameraReady(false);
+      };
+    } else {
+      setShowCamera(false);
+      setCameraReady(false);
+    }
+  }, [visible, permission?.granted]);
 
   // カメラ権限をリクエスト
   useEffect(() => {
@@ -251,17 +268,26 @@ export const QRCodeImportModal: React.FC<QRCodeImportModalProps> = ({
               QRコードをスキャンするか、データを直接入力してください
             </Text>
 
-            {/* QRコードスキャンエリア */}
+            {/* QRコードスキャンエリア（iOS: カメラは遅延マウント、onCameraReady 後にスキャン有効化） */}
             {permission?.granted ? (
               <View style={styles.scanArea}>
-                <CameraView
-                  style={StyleSheet.absoluteFillObject}
-                  facing="back"
-                  onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-                  barcodeScannerSettings={{
-                    barcodeTypes: ['qr'],
-                  }}
-                />
+                {showCamera ? (
+                  <CameraView
+                    style={StyleSheet.absoluteFillObject}
+                    facing="back"
+                    onBarcodeScanned={
+                      cameraReady && !scanned ? handleBarCodeScanned : undefined
+                    }
+                    onCameraReady={() => setCameraReady(true)}
+                    barcodeScannerSettings={{
+                      barcodeTypes: ['qr'],
+                    }}
+                  />
+                ) : (
+                  <View style={styles.scanAreaPlaceholder}>
+                    <Text style={styles.scanPlaceholder}>カメラを準備中...</Text>
+                  </View>
+                )}
                 {scanned && (
                   <View style={styles.scanOverlay}>
                     <Text style={styles.scanSuccessText}>✓ スキャン完了</Text>
@@ -364,6 +390,14 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   scanArea: {
+    height: 200,
+    backgroundColor: colors.background.tertiary,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  scanAreaPlaceholder: {
     height: 200,
     backgroundColor: colors.background.tertiary,
     borderRadius: 12,

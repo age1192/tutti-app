@@ -11,10 +11,11 @@
 ## [1.3.9] - 2026-02-10
 
 ### 修正
-- **iOS: 読み込み・コード編集等のモーダルでクラッシュする問題を対策**
-  - 全 Modal に `presentationStyle="overFullScreen"` を追加（iOS のモーダル重複表示クラッシュを軽減）
-  - PresetManager・TemplateSelector: モーダル表示完了後に AsyncStorage 読み込みを遅延（100ms）
-  - プログラム編集画面: マウント時にも向き固定を実行し、縦向きで表示されるのを防止
+- **iOS: 読み込み・コード編集等のモーダルでクラッシュする問題を追加対策**
+  - PresetManager: `InteractionManager.runAfterInteractions` で読み込みを遅延、`animationType="none"` に変更
+  - TemplateSelector: FlatList を ScrollView に変更、InteractionManager で読み込み遅延
+  - QRCodeImportModal: CameraView を 400ms 遅延マウント、`onCameraReady` 後にスキャン有効化（expo-camera の既知のクラッシュ対策）
+  - モーダル表示: ボタン押下時に `requestAnimationFrame` で 1 フレーム遅延してから表示
 - **バックグラウンド再生OFF時も再生されてしまう問題を修正**
   - アプリがバックグラウンドに移った際、設定がOFFならメトロノーム・プログラムメトロノーム・コード再生を自動停止
   - AppState の `background` イベントで `stop()` / `setIsPlaying(false)` を実行

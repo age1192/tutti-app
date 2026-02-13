@@ -172,7 +172,16 @@ export function PresetSelector({ type, screenWidth = 800 }: PresetSelectorProps)
         <Pressable style={[styles.button, dynamicStyles.button]} onPress={() => setSaveModalVisible(true)}>
           <Text style={[styles.buttonText, dynamicStyles.buttonText]}>保存</Text>
         </Pressable>
-        <Pressable style={[styles.button, dynamicStyles.button]} onPress={() => setManagerVisible(true)}>
+        <Pressable
+          style={[styles.button, dynamicStyles.button]}
+          onPress={() => {
+            if (Platform.OS === 'ios') {
+              requestAnimationFrame(() => setManagerVisible(true));
+            } else {
+              setManagerVisible(true);
+            }
+          }}
+        >
           <Text style={[styles.buttonText, dynamicStyles.buttonText]}>読み込み</Text>
         </Pressable>
       </View>

@@ -8,10 +8,11 @@ import {
   StyleSheet,
   Modal,
   Pressable,
-  FlatList,
+  ScrollView,
   TextInput,
   Alert,
   Platform,
+  InteractionManager,
 } from 'react-native';
 import { colors, typography, spacing } from '../../styles';
 import { useProgramStore } from '../../stores/useProgramStore';
@@ -31,9 +32,8 @@ export function TemplateSelector({ visible, onClose, onSelect }: TemplateSelecto
 
   useEffect(() => {
     if (visible) {
-      // iOS: モーダル表示完了後に読み込み
-      const timer = setTimeout(() => loadTemplates(), Platform.OS === 'ios' ? 100 : 0);
-      return () => clearTimeout(timer);
+      const task = InteractionManager.runAfterInteractions(() => loadTemplates());
+      return () => task.cancel();
     }
   }, [visible, loadTemplates]);
 
@@ -66,7 +66,7 @@ export function TemplateSelector({ visible, onClose, onSelect }: TemplateSelecto
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType={Platform.OS === 'ios' ? 'none' : 'fade'}
       onRequestClose={onClose}
       presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
     >
@@ -89,15 +89,13 @@ export function TemplateSelector({ visible, onClose, onSelect }: TemplateSelecto
             </View>
           ) : (
             <>
-              <FlatList
-                style={styles.list}
-                data={templates}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => {
+              <ScrollView style={styles.list} showsVerticalScrollIndicator={true}>
+                {templates.map((item) => {
                   const isSelected = selectedTemplate?.id === item.id;
                   const duration = formatDuration(getEstimatedDuration(item));
                   return (
                     <Pressable
+                      key={item.id}
                       style={[styles.templateItem, isSelected && styles.templateItemActive]}
                       onPress={() => {
                         setSelectedTemplate(item);
@@ -110,8 +108,8 @@ export function TemplateSelector({ visible, onClose, onSelect }: TemplateSelecto
                       </Text>
                     </Pressable>
                   );
-                }}
-              />
+                })}
+              </ScrollView>
 
               {selectedTemplate && (
                 <View style={styles.inputSection}>

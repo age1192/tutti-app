@@ -235,13 +235,25 @@ export default function ProgramListScreen() {
         <View style={styles.headerActions}>
           <Pressable
             style={styles.importButton}
-            onPress={() => setQrImportModalVisible(true)}
+            onPress={() => {
+              if (Platform.OS === 'ios') {
+                requestAnimationFrame(() => setQrImportModalVisible(true));
+              } else {
+                setQrImportModalVisible(true);
+              }
+            }}
           >
             <Text style={styles.importButtonText}>インポート</Text>
           </Pressable>
           <Pressable
             style={styles.templateButton}
-            onPress={() => setTemplateSelectorVisible(true)}
+            onPress={() => {
+              if (Platform.OS === 'ios') {
+                requestAnimationFrame(() => setTemplateSelectorVisible(true));
+              } else {
+                setTemplateSelectorVisible(true);
+              }
+            }}
           >
             <Text style={styles.templateButtonText}>テンプレート</Text>
           </Pressable>

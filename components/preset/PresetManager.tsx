@@ -12,6 +12,7 @@ import {
   ScrollView,
   Alert,
   Platform,
+  InteractionManager,
 } from 'react-native';
 import { colors, typography, spacing } from '../../styles';
 import { usePresetStore } from '../../stores/usePresetStore';
@@ -45,13 +46,13 @@ export function PresetManager({ visible, onClose, type, onSelect }: PresetManage
 
   useEffect(() => {
     if (visible) {
-      // iOS: モーダル表示完了後に読み込み（同時実行でクラッシュする場合がある）
-      const timer = setTimeout(() => {
+      // iOS: モーダル表示・アニメーション完了後に読み込み（InteractionManager で確実に遅延）
+      const task = InteractionManager.runAfterInteractions(() => {
         loadAllPresets().catch((err) => {
           console.error('Failed to load presets:', err);
         });
-      }, Platform.OS === 'ios' ? 100 : 0);
-      return () => clearTimeout(timer);
+      });
+      return () => task.cancel();
     }
   }, [visible, loadAllPresets]);
 
@@ -121,7 +122,7 @@ export function PresetManager({ visible, onClose, type, onSelect }: PresetManage
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType={Platform.OS === 'ios' ? 'none' : 'fade'}
       onRequestClose={onClose}
       presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
     >

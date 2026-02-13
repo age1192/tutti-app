@@ -1226,7 +1226,13 @@ export default function PlaybackScreen() {
               </Pressable>
               <Pressable
                 style={styles.presetButton}
-                onPress={() => setPresetManagerVisible(true)}
+                onPress={() => {
+                  if (Platform.OS === 'ios') {
+                    requestAnimationFrame(() => setPresetManagerVisible(true));
+                  } else {
+                    setPresetManagerVisible(true);
+                  }
+                }}
                 disabled={isPlaying}
               >
                 <Text style={[styles.presetButtonText, isPlaying && styles.presetButtonTextDisabled]}>
