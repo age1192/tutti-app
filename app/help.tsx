@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { colors, typography, spacing } from '../styles';
+import { LANDSCAPE_SAFE_AREA_INSET } from '../utils/constants';
 
 const HELP_SECTIONS = [
   {
@@ -106,8 +107,26 @@ export default function HelpScreen() {
     });
   };
 
+  // 横画面時のノッチ回避: 左右のみ 44pt を採用
+  const safePadding = {
+    top: insets.top,
+    bottom: insets.bottom,
+    left: Math.max(insets.left, LANDSCAPE_SAFE_AREA_INSET),
+    right: Math.max(insets.right, LANDSCAPE_SAFE_AREA_INSET),
+  };
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: safePadding.top,
+          paddingBottom: safePadding.bottom,
+          paddingLeft: safePadding.left,
+          paddingRight: safePadding.right,
+        },
+      ]}
+    >
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}

@@ -12,7 +12,6 @@ import {
   Alert,
   Platform,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
 import * as ScreenOrientation from 'expo-screen-orientation';
@@ -25,7 +24,6 @@ import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 
 export default function SettingsScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
 
   // 画面に入った時に横画面固定（home.tsxで管理されているが、念のため）
@@ -115,7 +113,7 @@ export default function SettingsScreen() {
   const appVersion = Constants.expoConfig?.version || '1.0.0';
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}

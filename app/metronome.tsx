@@ -19,7 +19,7 @@ import {
   BeatPulse,
 } from '../components/metronome';
 import { PresetSelector } from '../components/preset';
-import { TIME_SIGNATURES, TEMPO_MIN, TEMPO_MAX, TEMPO_DEFAULT } from '../utils/constants';
+import { TIME_SIGNATURES, TEMPO_MIN, TEMPO_MAX, TEMPO_DEFAULT, LANDSCAPE_SAFE_AREA_INSET } from '../utils/constants';
 import { TimeSignature, SubdivisionType, SubdivisionSettings, MetronomeToneType } from '../types';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useMetronomeStore } from '../stores/useMetronomeStore';
@@ -210,15 +210,33 @@ export default function MetronomeScreen() {
     return { visualSize, tempoFontSize, pendulumSize, pulseSize };
   }, [dimensions, visualMode]);
 
-  const topPadding = Math.max(insets.top, 4);
-  const bottomPadding = Math.max(insets.bottom, 0);
+  // ホームで safe area を適用済みのため、内部レイアウト用の最小余白のみ
+  const topPadding = 4;
+  const bottomPadding = 4;
+  const hPadLeft = Math.max(insets.left, LANDSCAPE_SAFE_AREA_INSET);
+  const hPadRight = Math.max(insets.right, LANDSCAPE_SAFE_AREA_INSET);
 
   return (
     <View style={[styles.container, { paddingBottom: bottomPadding }]}>
       <StatusBar hidden={isLandscape} />
 
-      {/* 上段: コントロールバー */}
-      <View style={[styles.controlBar, { paddingTop: topPadding }]}>
+      {/* 上段: コントロールバー（背景は画面端まで、ボタンは余白内） */}
+      <View
+        style={[
+          styles.controlBarOuter,
+          { marginLeft: -hPadLeft, marginRight: -hPadRight },
+        ]}
+      >
+        <View
+          style={[
+            styles.controlBar,
+            {
+              paddingTop: topPadding,
+              paddingLeft: hPadLeft,
+              paddingRight: hPadRight,
+            },
+          ]}
+        >
         {/* 左側: 設定ボタン群 */}
         <View style={styles.controlGroup}>
           {/* 拍子選択 */}
@@ -241,13 +259,15 @@ export default function MetronomeScreen() {
             <Text style={[styles.controlLabel, dynamicStyles.controlLabel]}>拍分割</Text>
           </Pressable>
 
-          {/* プログラム */}
-          <Link href="/program" asChild>
-            <Pressable style={[styles.controlButton, dynamicStyles.controlButton]}>
-              <Text style={[styles.controlButtonText, dynamicStyles.controlButtonText]}>PRG</Text>
-              <Text style={[styles.controlLabel, dynamicStyles.controlLabel]} numberOfLines={1}>プログラム</Text>
-            </Pressable>
-          </Link>
+          {/* プログラム（拍子・拍分割と同じスタイル） */}
+          <View style={[styles.controlButton, dynamicStyles.controlButton]}>
+            <Link href="/program" asChild>
+              <Pressable style={styles.controlButtonInner}>
+                <Text style={[styles.controlButtonText, dynamicStyles.controlButtonText]}>PRG</Text>
+                <Text style={[styles.controlLabel, dynamicStyles.controlLabel]} numberOfLines={1}>プログラム</Text>
+              </Pressable>
+            </Link>
+          </View>
 
           {/* 音色選択 */}
           <Pressable
@@ -289,6 +309,7 @@ export default function MetronomeScreen() {
             <Text style={[styles.modeButtonText, visualMode === 'pendulum' && styles.modeButtonTextActive]}>振り子</Text>
           </Pressable>
         </View>
+      </View>
       </View>
 
       {/* メインエリア: 2カラムレイアウト */}
@@ -487,15 +508,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background.primary,
   },
+  controlBarOuter: {
+    backgroundColor: colors.background.secondary,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.default,
+  },
   controlBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.background.secondary,
-    paddingHorizontal: Math.max(spacing.md, 8), // 最小8pxのpaddingを確保（Android対応）
     paddingBottom: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
     flexWrap: 'wrap', // 小さい画面で折り返し可能に
   },
   controlGroup: {
@@ -509,6 +531,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background.tertiary,
     flexShrink: 1, // 小さい画面で縮小可能に
     borderRadius: 12, // デフォルト値（動的スタイルで上書きされる）
+  },
+  controlButtonInner: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'stretch',
   },
   controlButtonText: {
     fontWeight: '700',

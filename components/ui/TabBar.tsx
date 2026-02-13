@@ -77,11 +77,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    backgroundColor: colors.background.secondary,
-    borderTopWidth: 1,
-    borderTopColor: colors.border.default,
     paddingHorizontal: spacing.sm,
-    paddingBottom: spacing.sm,
     paddingTop: spacing.sm,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },

@@ -5,29 +5,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Audio } from 'expo-av';
 import { Platform } from 'react-native';
-// react-native-audio-apiのインポート（エラーハンドリング付き）
+// react-native-audio-apiのインポート
 let AudioContext: any = null;
 try {
-  // useTuner.tsと同じ方法でインポート
-  const audioApiModule = require('react-native-audio-api');
-  console.log('[Audio] react-native-audio-api module loaded:', !!audioApiModule);
-  console.log('[Audio] Available exports:', Object.keys(audioApiModule || {}));
-  
-  // AudioContextを取得
-  AudioContext = audioApiModule?.AudioContext || audioApiModule?.default?.AudioContext;
-  
-  if (AudioContext) {
-    console.log('[Audio] AudioContext imported successfully');
-  } else {
-    console.error('[Audio] AudioContext is null!');
-    console.error('[Audio] Module structure:', JSON.stringify(audioApiModule, null, 2));
-  }
+  AudioContext = require('react-native-audio-api').AudioContext;
 } catch (e) {
-  console.error('[Audio] Failed to import react-native-audio-api:', e);
-  if (e instanceof Error) {
-    console.error('[Audio] Error message:', e.message);
-    console.error('[Audio] Error stack:', e.stack);
-  }
+  console.warn('react-native-audio-api is not available:', e);
 }
 import { ToneType, MetronomeToneType } from '../types';
 import { useSettingsStore } from '../stores/useSettingsStore';
@@ -50,6 +33,7 @@ let _sharedActiveNoteCount = 0;
 let _refCount = 0;
 let _isInitializing = false;
 let _initPromise: Promise<void> | null = null;
+let _initLock = false; // 初期化のロック（競合を防ぐ）
 const MAX_CONCURRENT_NOTES = 32;
 
 export function useAudioEngine() {
@@ -66,17 +50,7 @@ export function useAudioEngine() {
 
     const init = async () => {
       try {
-        // 既に初期化中または初期化済みの場合は待機
-        if (_initPromise) {
-          await _initPromise;
-          setAudioState({
-            isReady: _sharedCtx != null && _sharedCtx.state !== 'closed',
-            isAudioSupported: _sharedCtx != null && _sharedCtx.state !== 'closed',
-          });
-          return;
-        }
-
-        // 既にAudioContextが存在する場合は再利用
+        // 既にAudioContextが存在する場合は再利用（最初にチェック）
         if (_sharedCtx && _sharedCtx.state !== 'closed') {
           setAudioState({
             isReady: true,
@@ -85,7 +59,47 @@ export function useAudioEngine() {
           return;
         }
 
-        // 初期化を開始
+        // 既に初期化中の場合は待機
+        if (_initPromise) {
+          console.log('[Audio] Waiting for existing initialization...');
+          await _initPromise;
+          setAudioState({
+            isReady: _sharedCtx != null && _sharedCtx.state !== 'closed',
+            isAudioSupported: _sharedCtx != null && _sharedCtx.state !== 'closed',
+          });
+          return;
+        }
+
+        // 初期化を開始（ロックを設定）- 競合を防ぐ
+        if (_initLock) {
+          console.log('[Audio] Initialization lock is set, waiting...');
+          // ロックが解除されるまで待つ
+          let waited = 0;
+          while (_initLock && waited < 1000) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+            waited += 50;
+          }
+          if (_initPromise) {
+            await _initPromise;
+          }
+          setAudioState({
+            isReady: _sharedCtx != null && _sharedCtx.state !== 'closed',
+            isAudioSupported: _sharedCtx != null && _sharedCtx.state !== 'closed',
+          });
+          return;
+        }
+
+        // 再度チェック（待機中に他のスレッドが作成した可能性がある）
+        if (_sharedCtx && _sharedCtx.state !== 'closed') {
+          setAudioState({
+            isReady: true,
+            isAudioSupported: true,
+          });
+          return;
+        }
+
+        // 初期化を開始（ロックを設定）
+        _initLock = true;
         _isInitializing = true;
         _initPromise = (async () => {
           try {
@@ -102,11 +116,19 @@ export function useAudioEngine() {
             let isAudioSupported = false;
             console.log('[Audio] Checking AudioContext availability:', AudioContext ? 'available' : 'null');
             if (AudioContext) {
-              // 再度チェック（他のスレッドが既に作成した可能性がある）
+              // 再度チェック（他のスレッドが既に作成した可能性がある）- より厳密にチェック
               if (_sharedCtx && _sharedCtx.state !== 'closed') {
                 isAudioSupported = true;
                 console.log('[Audio] Reusing existing shared AudioContext, state:', _sharedCtx.state);
-              } else {
+              } else if (_sharedCtx && _sharedCtx.state === 'closed') {
+                // closed状態の場合はnullにリセット
+                console.log('[Audio] Existing AudioContext is closed, resetting...');
+                _sharedCtx = null;
+                _sharedMasterGain = null;
+              }
+              
+              // _sharedCtxがまだnullの場合のみ作成
+              if (!_sharedCtx) {
                 // 新しいAudioContextを作成（初回のみ、または前回が閉じられた場合）
                 try {
                   console.log('[Audio] Creating new AudioContext...');
@@ -120,6 +142,24 @@ export function useAudioEngine() {
                   _sharedMasterGain = masterGain;
                   
                   _sharedActiveNoteCount = 0;
+                  
+                  // iOS: suspended状態の場合はresumeを試みる
+                  if (ctx.state === 'suspended') {
+                    try {
+                      console.log('[Audio] Resuming AudioContext during initialization...');
+                      await ctx.resume();
+                      // resume後、状態がrunningになるまで最大200ms待機
+                      let retries = 0;
+                      while (ctx.state === 'suspended' && retries < 20) {
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                        retries++;
+                      }
+                      console.log('[Audio] AudioContext state after resume:', ctx.state);
+                    } catch (e) {
+                      console.warn('[Audio] Failed to resume AudioContext during initialization:', e);
+                    }
+                  }
+                  
                   isAudioSupported = true;
                   console.log('[Audio] AudioContext initialized successfully (singleton), state:', ctx.state);
                 } catch (e) {
@@ -148,6 +188,7 @@ export function useAudioEngine() {
           } finally {
             _isInitializing = false;
             _initPromise = null;
+            _initLock = false; // ロックを解除
           }
         })();
 
@@ -160,6 +201,7 @@ export function useAudioEngine() {
         });
         _isInitializing = false;
         _initPromise = null;
+        _initLock = false; // ロックを解除
       }
     };
 
@@ -464,11 +506,42 @@ export function useAudioEngine() {
    * 持続音を開始（Web環境のみ完全サポート）
    * 音色: organ, flute, clarinet, oboe
    */
+  /**
+   * iOS/Safari: AudioContext.resume() はユーザージェスチャー内で同期的に呼ぶ必要がある。
+   * await の後に呼ぶとジェスチャーが失効し、resume が効かない。
+   * タッチ/クリックハンドラの先頭で呼ぶこと。
+   */
+  const resumeAudioContextSync = useCallback(() => {
+    const ctx = _sharedCtx;
+    if (ctx && ctx.state === 'suspended') {
+      try {
+        ctx.resume(); // Promise を返すが await しない（同期的に呼ぶことが重要）
+      } catch (e) {
+        console.warn('[Audio] resumeAudioContextSync failed:', e);
+      }
+    }
+  }, []);
+
+  // AudioContextの状態を同期的にチェック（高速パス: await不要）
+  const isAudioContextReadySync = useCallback((): boolean => {
+    if (!_sharedCtx || !_sharedMasterGain) return false;
+    const state = _sharedCtx.state;
+    return state === 'running' || state === 'suspended';
+  }, []);
+
   // AudioContextとマスターGainNodeの状態を確認・修復する関数
   const ensureAudioContextReady = useCallback(async (): Promise<boolean> => {
+    // 高速パス: 既にrunning状態なら即座にtrue（ログも省略）
+    if (_sharedCtx && _sharedMasterGain && _sharedCtx.state === 'running') {
+      return true;
+    }
+
+    console.log('[Audio] ensureAudioContextReady called, _isInitializing:', _isInitializing, '_sharedCtx:', !!_sharedCtx, '_initPromise:', !!_initPromise);
+    
     // 初期化中の場合は完了を待つ（重要：最初にチェック）
-    if (_isInitializing && _initPromise) {
+    if (_initPromise) {
       try {
+        console.log('[Audio] Waiting for initialization to complete...');
         await _initPromise;
       } catch (e) {
         console.warn('[Audio] Initialization failed:', e);
@@ -476,30 +549,33 @@ export function useAudioEngine() {
       }
     }
 
-    // 初期化がまだ開始されていない場合は待機（初期化が開始されるまで少し待つ）
-    if (!_sharedCtx && !_isInitializing) {
-      // 初期化が開始されるまで最大500ms待機
+    // 初期化がまだ開始されていない、またはctxがnullの場合は待機
+    if (!_sharedCtx) {
+      console.log('[Audio] Waiting for AudioContext to be created...');
       let waited = 0;
-      while (!_sharedCtx && !_isInitializing && waited < 500) {
+      while (!_sharedCtx && waited < 2000) {
+        if (_initPromise) {
+          try {
+            await _initPromise;
+            if (_sharedCtx) break;
+          } catch (e) {
+            console.warn('[Audio] Initialization failed:', e);
+            return false;
+          }
+        }
         await new Promise(resolve => setTimeout(resolve, 50));
         waited += 50;
       }
-      // 初期化が開始された場合は完了を待つ
-      if (_initPromise) {
-        try {
-          await _initPromise;
-        } catch (e) {
-          console.warn('[Audio] Initialization failed:', e);
-          return false;
-        }
+      
+      if (!_sharedCtx) {
+        console.warn('[Audio] AudioContext is still null after waiting 2000ms');
+        return false;
       }
     }
 
     const ctx = _sharedCtx;
-
-    // AudioContextが存在しない、またはclosedの場合は何もしない
-    // （再作成はiOSでスレッド競合を引き起こすため行わない）
     if (!ctx || ctx.state === 'closed') {
+      console.warn('[Audio] AudioContext is null or closed');
       return false;
     }
 
@@ -516,25 +592,12 @@ export function useAudioEngine() {
       }
     }
 
-    // AudioContextがsuspendedの場合は再開（iOSで重要）
+    // AudioContextがsuspendedの場合は再開を試みる
     if (ctx.state === 'suspended') {
       try {
-        console.log('[Audio] Resuming suspended AudioContext...');
-        await ctx.resume();
-        // resume後、状態がrunningになるまで最大100ms待機
-        let retries = 0;
-        while (ctx.state === 'suspended' && retries < 10) {
-          await new Promise(resolve => setTimeout(resolve, 10));
-          retries++;
-        }
-        if (ctx.state === 'suspended') {
-          console.warn('[Audio] AudioContext still suspended after resume, state:', ctx.state);
-          return false;
-        }
-        console.log('[Audio] AudioContext resumed successfully, state:', ctx.state);
+        ctx.resume();
       } catch (e) {
         console.warn('[Audio] Failed to resume AudioContext:', e);
-        return false;
       }
     }
 
@@ -543,53 +606,38 @@ export function useAudioEngine() {
 
   const startNote = useCallback(
     async (noteId: number, frequency: number, volume: number = 0.3, tone: ToneType = 'organ') => {
-      if (!audioState.isAudioSupported) return;
-
-      // AudioContextとマスターGainNodeの状態を確認・修復
-      const isReady = await ensureAudioContextReady();
-      if (!isReady) {
-        console.warn('[Audio] AudioContext is not ready, skipping note:', noteId);
-        return;
-      }
-
       const ctx = _sharedCtx;
       const masterGain = _sharedMasterGain;
-      if (!ctx || !masterGain) {
-        console.error('[Audio] AudioContext or masterGain is null after ensureAudioContextReady');
-        return;
-      }
 
-      // iOS: suspended状態の場合は確実にresume（ユーザーインタラクション時）
-      if (ctx.state === 'suspended') {
-        try {
-          console.log('[Audio] startNote: Resuming suspended AudioContext before playing note:', noteId);
-          await ctx.resume();
-          // resume後、状態がrunningになるまで最大100ms待機
-          let retries = 0;
-          while (ctx.state === 'suspended' && retries < 10) {
-            await new Promise(resolve => setTimeout(resolve, 10));
-            retries++;
-          }
-          if (ctx.state === 'suspended') {
-            console.warn('[Audio] AudioContext still suspended after resume in startNote, skipping note:', noteId);
-            return;
-          }
-          console.log('[Audio] AudioContext resumed in startNote, state:', ctx.state);
-        } catch (e) {
-          console.warn('[Audio] Failed to resume AudioContext in startNote:', e);
+      // 高速パス: AudioContextがrunning状態ならawaitなしで即座に音を鳴らす
+      if (!ctx || !masterGain || ctx.state !== 'running') {
+        // 遅延パス: AudioContextの準備が必要
+        const isReady = await ensureAudioContextReady();
+        if (!isReady) {
+          console.warn('[Audio] AudioContext is not ready, skipping note:', noteId);
+          return;
+        }
+
+        // suspendedの場合はresume（fire-and-forget: 結果を待たずに進む）
+        if (_sharedCtx?.state === 'suspended') {
+          try { _sharedCtx.resume(); } catch (e) {}
+        }
+
+        // 再チェック
+        if (!_sharedCtx || !_sharedMasterGain || _sharedCtx.state === 'closed') {
+          console.warn('[Audio] AudioContext is not available after ensure, skipping note:', noteId);
           return;
         }
       }
 
-      // 再度状態をチェック
-      if (ctx.state !== 'running') {
-        console.warn('[Audio] AudioContext is not running, state:', ctx.state, 'skipping note:', noteId);
-        return;
-      }
+      // 遅延パス通過後はシングルトン参照を再取得
+      const activeCtx = _sharedCtx;
+      const activeMasterGain = _sharedMasterGain;
+      if (!activeCtx || !activeMasterGain) return;
 
       try {
         // 同じ noteId の音が既に鳴っていたら先に停止（参照を失って音が残るのを防ぐ）
-        const existingOscillator = (ctx as any)[`__note_${noteId}`];
+        const existingOscillator = (activeCtx as any)[`__note_${noteId}`];
         if (existingOscillator) {
           stopNote(noteId);
         }
@@ -597,17 +645,17 @@ export function useAudioEngine() {
         // 同時に鳴らせる音の数が上限に達している場合は、古い音を停止
         if (_sharedActiveNoteCount >= MAX_CONCURRENT_NOTES) {
           // 最も古い音を探して停止（簡易実装：最初に見つかった音を停止）
-          const keys = Object.keys(ctx).filter(k => k.startsWith('__note_'));
+          const keys = Object.keys(activeCtx).filter(k => k.startsWith('__note_'));
           if (keys.length > 0) {
             const oldestNoteId = parseInt(keys[0].replace('__note_', ''), 10);
             stopNote(oldestNoteId);
           }
         }
 
-        const currentTime = ctx.currentTime;
+        const currentTime = activeCtx.currentTime;
 
-        const oscillator = ctx.createOscillator();
-        const gainNode = ctx.createGain();
+        const oscillator = activeCtx.createOscillator();
+        const gainNode = activeCtx.createGain();
         gainNode.gain.value = 0;
 
         // 音色設定
@@ -619,7 +667,7 @@ export function useAudioEngine() {
             // パイプオルガンは複数のパイプの音を合成したような豊かな倍音構造を持つ
             // 基本音を矩形波ベースにし、追加の倍音で豊かさを出す
             oscillator.type = 'square'; // 矩形波（奇数倍音を含む）
-            filter = ctx.createBiquadFilter();
+            filter = activeCtx.createBiquadFilter();
             filter.type = 'lowpass';
             filter.frequency.value = frequency * 6; // 適度な高次倍音まで含める
             filter.Q.value = 0.5; // 緩やかなローパスで自然な減衰
@@ -627,7 +675,7 @@ export function useAudioEngine() {
           case 'flute':
             // フルート: サイン波 + 低域フィルタ
             oscillator.type = 'sine';
-            filter = ctx.createBiquadFilter();
+            filter = activeCtx.createBiquadFilter();
             filter.type = 'lowpass';
             filter.frequency.value = 3000;
             filter.Q.value = 1;
@@ -644,13 +692,13 @@ export function useAudioEngine() {
             // 低域は強く、高域は減衰する
             
             // ローパスフィルタで高域を減衰
-            const lowpassFilter = ctx.createBiquadFilter();
+            const lowpassFilter = activeCtx.createBiquadFilter();
             lowpassFilter.type = 'lowpass';
             lowpassFilter.frequency.value = 4000; // 高域を適度に減衰
             lowpassFilter.Q.value = 0.7;
             
             // ピークフィルタで第1フォルマント（1500Hz付近）を強調
-            const formantFilter = ctx.createBiquadFilter();
+            const formantFilter = activeCtx.createBiquadFilter();
             formantFilter.type = 'peaking';
             formantFilter.frequency.value = 1500;
             formantFilter.Q.value = 2.5;
@@ -673,7 +721,7 @@ export function useAudioEngine() {
             // - より豊かで深みのある音色
             oscillator.type = 'sine'; // 基本音はサイン波
             // ローパスフィルタで高域を自然に減衰（グランドピアノらしい柔らかい音色）
-            filter = ctx.createBiquadFilter();
+            filter = activeCtx.createBiquadFilter();
             filter.type = 'lowpass';
             filter.frequency.value = frequency * 15; // より高次倍音まで含める
             filter.Q.value = 0.3; // より緩やかな減衰で自然な音色
@@ -686,14 +734,14 @@ export function useAudioEngine() {
         // クラリネットの場合は既に接続済み（複数フィルタを使用）
         if (tone === 'clarinet') {
           // クラリネットは既に oscillator -> lowpassFilter -> formantFilter -> gainNode で接続済み
-          gainNode.connect(masterGain);
+          gainNode.connect(activeMasterGain);
         } else if (filter) {
           oscillator.connect(filter);
           filter.connect(gainNode);
-          gainNode.connect(masterGain);
+          gainNode.connect(activeMasterGain);
         } else {
           oscillator.connect(gainNode);
-          gainNode.connect(masterGain);
+          gainNode.connect(activeMasterGain);
         }
 
         // Attack（楽器ごとに異なる）
@@ -734,18 +782,18 @@ export function useAudioEngine() {
           const d2 = 0.6, d3 = 0.5, d4 = 0.4, d5 = 0.3, d6 = 0.25;
           const addHarmonic = (mult: number, vol: number, decay: number) => {
             try {
-              const h = ctx.createOscillator();
+              const h = activeCtx.createOscillator();
               h.type = 'sine';
               h.frequency.value = frequency * mult;
-              const g = ctx.createGain();
+              const g = activeCtx.createGain();
               g.gain.value = 0;
-              const f = ctx.createBiquadFilter();
+              const f = activeCtx.createBiquadFilter();
               f.type = 'lowpass';
               f.frequency.value = frequency * (mult < 4 ? 6 : 4);
               f.Q.value = 0.5;
               h.connect(f);
               f.connect(g);
-              g.connect(masterGain); // マスターGainNode経由で出力（重要）
+              g.connect(activeMasterGain); // マスターGainNode経由で出力（重要）
               g.gain.setValueAtTime(0, currentTime);
               g.gain.linearRampToValueAtTime(volume * vol, currentTime + attackTime);
               g.gain.exponentialRampToValueAtTime(0.001, currentTime + attackTime + decay);
@@ -789,23 +837,23 @@ export function useAudioEngine() {
             (oscillator as any).__harmonic6AutoStop = true;
           }
           // ハンマーストライクのノイズ成分（グランドピアノらしい打鍵感）
-          const noiseBuffer = ctx.createBuffer(1, Math.min(ctx.sampleRate * 0.015, 768), ctx.sampleRate);
+          const noiseBuffer = activeCtx.createBuffer(1, Math.min(activeCtx.sampleRate * 0.015, 768), activeCtx.sampleRate);
           const noiseData = noiseBuffer.getChannelData(0);
           for (let i = 0; i < noiseData.length; i++) {
             noiseData[i] = (Math.random() * 2 - 1) * 0.2; // 少し控えめに
           }
-          const noiseSource = ctx.createBufferSource();
+          const noiseSource = activeCtx.createBufferSource();
           noiseSource.buffer = noiseBuffer;
           noiseSource.loop = false;
-          const noiseGain = ctx.createGain();
+          const noiseGain = activeCtx.createGain();
           noiseGain.gain.value = 0;
-          const noiseFilter = ctx.createBiquadFilter();
+          const noiseFilter = activeCtx.createBiquadFilter();
           noiseFilter.type = 'bandpass';
           noiseFilter.frequency.value = frequency * 10; // より高域のノイズ
           noiseFilter.Q.value = 1.5;
           noiseSource.connect(noiseFilter);
           noiseFilter.connect(noiseGain);
-          noiseGain.connect(masterGain); // マスターGainNode経由で出力
+          noiseGain.connect(activeMasterGain); // マスターGainNode経由で出力
           noiseGain.gain.setValueAtTime(volume * 0.1, currentTime);
           noiseGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.01);
           noiseSource.start(currentTime);
@@ -817,20 +865,20 @@ export function useAudioEngine() {
         // オルガンの場合、倍音を追加してより豊かな音色に
         if (tone === 'organ') {
           // 2倍音（オクターブ上）を追加（音量は基本音の25%）
-          const harmonic2 = ctx.createOscillator();
+          const harmonic2 = activeCtx.createOscillator();
           harmonic2.type = 'sine';
           harmonic2.frequency.value = frequency * 2;
-          const gain2 = ctx.createGain();
+          const gain2 = activeCtx.createGain();
           gain2.gain.value = 0;
           
-          const filter2 = ctx.createBiquadFilter();
+          const filter2 = activeCtx.createBiquadFilter();
           filter2.type = 'lowpass';
           filter2.frequency.value = frequency * 6; // 基本音と同じフィルタ設定
           filter2.Q.value = 0.5;
           
           harmonic2.connect(filter2);
           filter2.connect(gain2);
-          gain2.connect(ctx.destination);
+          gain2.connect(activeCtx.destination);
           
           gain2.gain.setValueAtTime(0, currentTime);
           gain2.gain.linearRampToValueAtTime(volume * 0.25, currentTime + attackTime);
@@ -840,20 +888,20 @@ export function useAudioEngine() {
           (oscillator as any).__gain2 = gain2;
           
           // 3倍音（12度上）を追加（音量は基本音の15%）
-          const harmonic3 = ctx.createOscillator();
+          const harmonic3 = activeCtx.createOscillator();
           harmonic3.type = 'sine';
           harmonic3.frequency.value = frequency * 3;
-          const gain3 = ctx.createGain();
+          const gain3 = activeCtx.createGain();
           gain3.gain.value = 0;
           
-          const filter3 = ctx.createBiquadFilter();
+          const filter3 = activeCtx.createBiquadFilter();
           filter3.type = 'lowpass';
           filter3.frequency.value = frequency * 6; // 基本音と同じフィルタ設定
           filter3.Q.value = 0.5;
           
           harmonic3.connect(filter3);
           filter3.connect(gain3);
-          gain3.connect(ctx.destination);
+          gain3.connect(activeCtx.destination);
           
           gain3.gain.setValueAtTime(0, currentTime);
           gain3.gain.linearRampToValueAtTime(volume * 0.15, currentTime + attackTime);
@@ -877,7 +925,7 @@ export function useAudioEngine() {
         (oscillator as any).__targetVolume = volume;
         (oscillator as any).__filter = filter;
         (oscillator as any).__tone = tone; // 音色を保存（setNoteVolumeで使用）
-        (ctx as any)[`__note_${noteId}`] = oscillator;
+        (activeCtx as any)[`__note_${noteId}`] = oscillator;
         _sharedActiveNoteCount++;
       } catch (error) {
         // 予期しないエラーが発生した場合もログを残して処理を続行
@@ -1156,6 +1204,14 @@ export function useAudioEngine() {
   }, []);
 
   /**
+   * AudioContextの初期化を確実に待機し、準備ができていることを保証する
+   * 画面がフォーカスされた時などに呼び出す
+   */
+  const ensureReady = useCallback(async (): Promise<boolean> => {
+    return await ensureAudioContextReady();
+  }, [ensureAudioContextReady]);
+
+  /**
    * バックグラウンドでオーディオセッションをアクティブに保つ
    * expo-avのオーディオモードを再設定してセッションを維持
    */
@@ -1193,6 +1249,9 @@ export function useAudioEngine() {
     scheduleClick,
     getCurrentTime,
     ensureAudioContextResumed,
+    ensureReady,
+    isAudioContextReadySync,
+    resumeAudioContextSync,
     keepAudioAliveForBackground,
   };
 }

@@ -28,6 +28,7 @@ import {
   getTotalMeasures,
   generateId,
 } from '../../utils/programUtils';
+import { LANDSCAPE_SAFE_AREA_INSET } from '../../utils/constants';
 import { QRCodeImportModal, TemplateSelector } from '../../components/program';
 
 export default function ProgramListScreen() {
@@ -206,14 +207,30 @@ export default function ProgramListScreen() {
     </View>
   );
 
-  const topPadding = Math.max(insets.top, 4);
+  // 横画面時のノッチ回避: 左右のみ 44pt を採用
+  const safePadding = {
+    top: insets.top,
+    bottom: insets.bottom,
+    left: Math.max(insets.left, LANDSCAPE_SAFE_AREA_INSET),
+    right: Math.max(insets.right, LANDSCAPE_SAFE_AREA_INSET),
+  };
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: safePadding.top,
+          paddingBottom: safePadding.bottom,
+          paddingLeft: safePadding.left,
+          paddingRight: safePadding.right,
+        },
+      ]}
+    >
       <StatusBar hidden={isLandscape} />
 
       {/* ヘッダー */}
-      <View style={[styles.header, { paddingTop: topPadding }]}>
+      <View style={styles.header}>
         <Text style={styles.headerTitle}>プログラム一覧</Text>
         <View style={styles.headerActions}>
           <Pressable

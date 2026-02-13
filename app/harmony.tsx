@@ -59,7 +59,7 @@ export default function HarmonyScreen() {
     clearActiveNotes,
   } = useHarmonyStore();
 
-  const { startNote, stopNote, stopAllNotes, setNoteVolume, isAudioSupported } = useAudioEngine();
+  const { startNote, stopNote, stopAllNotes, setNoteVolume, isAudioSupported, ensureReady, isAudioContextReadySync, resumeAudioContextSync, ensureAudioContextResumed } = useAudioEngine();
   const insets = useSafeAreaInsets();
   const { settings, loadSettings } = useSettingsStore();
   const [isLandscape, setIsLandscape] = useState(false);
@@ -69,9 +69,30 @@ export default function HarmonyScreen() {
   const [viewMode, setViewMode] = useState<ViewMode>('keyboard'); // 表示モード
   const [chordKeyIndex, setChordKeyIndex] = useState(0); // コードモードのキーインデックス
 
-  // 画面がフォーカスされた時に設定のデフォルト値を適用
+  // 画面がフォーカスされた時に設定のデフォルト値を適用し、AudioContextを初期化
   useFocusEffect(
     useCallback(() => {
+      // AudioContextを確実に初期化・準備（鍵盤を押す前に準備しておく）
+      const initAudio = async () => {
+        console.log('[Harmony] Initializing AudioContext on focus...');
+        // ensureReadyを呼び出すことで、初期化が確実に完了するまで待機
+        let ready = false;
+        let retries = 0;
+        while (!ready && retries < 20) {
+          ready = await ensureReady();
+          if (!ready) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+            retries++;
+          }
+        }
+        // 初期化が完了したら、resumeも試みる
+        if (ready) {
+          await ensureAudioContextResumed();
+        }
+        console.log('[Harmony] AudioContext ready:', ready);
+      };
+      initAudio();
+      
       // 設定を読み込んで適用
       loadSettings().then(() => {
         const currentSettings = useSettingsStore.getState().settings;
@@ -93,11 +114,12 @@ export default function HarmonyScreen() {
       }).catch((error) => {
         console.error('Failed to load and apply settings:', error);
       });
-    }, [loadSettings, setBasePitch, setTuning])
+    }, [loadSettings, setBasePitch, setTuning, ensureReady])
   );
 
   // HarmonyControlsの高さを計算（横画面時はヘッダー上余白を最小に）
   const controlsHeight = useMemo(() => {
+    // 横画面時はホームで safe area 適用済み。縦画面時は insets を使用
     const topPadding = isLandscape ? 4 : Math.max(insets.top, spacing.sm);
     const controlsMinHeight = isLandscape ? 68 : 70;
     return topPadding + controlsMinHeight;
@@ -194,6 +216,15 @@ export default function HarmonyScreen() {
   // ノートON
   const handleNoteOn = useCallback(
     (midiNote: number) => {
+      // iOS: ユーザージェスチャー内で同期的に resume を呼ぶ（await の前が必須）
+      resumeAudioContextSync();
+      // AudioContextが既にready状態なら同期的に音を鳴らす（遅延なし）
+      // readyでない場合のみ非同期で初期化を待つ（startNote内部で処理）
+      if (!isAudioContextReadySync()) {
+        // 非同期パス: 初期化がまだの場合（初回のみ発生）
+        ensureReady();
+      }
+      
       // 新しいノートを追加した状態で和音を判定
       const newActiveNotes = new Set(activeNotes);
       newActiveNotes.add(midiNote);
@@ -224,7 +255,7 @@ export default function HarmonyScreen() {
       startNote(midiNote, frequency, 0.3, tone);
       addActiveNote(midiNote);
     },
-    [activeNotes, currentRootNote, tuning, calculateFrequencyWithRoot, startNote, stopNote, addActiveNote]
+    [activeNotes, currentRootNote, tuning, calculateFrequencyWithRoot, startNote, stopNote, addActiveNote, ensureReady, isAudioContextReadySync, resumeAudioContextSync]
   );
 
   // ノートOFF

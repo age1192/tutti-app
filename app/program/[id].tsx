@@ -26,6 +26,7 @@ import {
   getEstimatedDuration,
   getTotalMeasures,
 } from '../../utils/programUtils';
+import { LANDSCAPE_SAFE_AREA_INSET } from '../../utils/constants';
 
 export default function ProgramEditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -252,10 +253,27 @@ export default function ProgramEditorScreen() {
 
   const totalMeasures = getTotalMeasures(currentProgram);
   const estimatedDuration = getEstimatedDuration(currentProgram);
-  const topPadding = Math.max(insets.top, 4);
+
+  // 横画面時のノッチ回避: 左右のみ 44pt を採用
+  const safePadding = {
+    top: insets.top,
+    bottom: insets.bottom,
+    left: Math.max(insets.left, LANDSCAPE_SAFE_AREA_INSET),
+    right: Math.max(insets.right, LANDSCAPE_SAFE_AREA_INSET),
+  };
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: safePadding.top,
+          paddingBottom: safePadding.bottom,
+          paddingLeft: safePadding.left,
+          paddingRight: safePadding.right,
+        },
+      ]}
+    >
       <StatusBar barStyle="light-content" />
 
       {/* ヘッダー */}

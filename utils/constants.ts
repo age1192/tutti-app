@@ -3,6 +3,9 @@
  */
 import { TimeSignature } from '../types';
 
+/** Appleガイドライン: 横画面時のノッチ回避用余白（左右のみ、44pt〜59pt推奨） */
+export const LANDSCAPE_SAFE_AREA_INSET = 44;
+
 // メトロノーム
 export const TEMPO_MIN = 20;
 export const TEMPO_MAX = 300;

@@ -85,7 +85,7 @@ export const PLAYBACK_TEMPLATES: PlaybackTemplate[] = [
     timeSignature: TIME_SIGNATURES[3], // 4/4
     metronomeEnabled: true,
     createdAt: 0,
-    useSpecifiedVoicing: true,
+    useSpecifiedVoicing: false, // カスタム音高なし → 声部連結を使用
   },
   {
     id: 'template-scale',

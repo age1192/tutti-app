@@ -20,6 +20,7 @@ import { colors, typography, spacing } from '../../styles';
 import { useProgramStore } from '../../stores';
 import { useProgramMetronome, useKeepAwake, useHaptics } from '../../hooks';
 import { getProgram, formatDuration } from '../../utils/programUtils';
+import { LANDSCAPE_SAFE_AREA_INSET } from '../../utils/constants';
 import { BeatIndicator, BeatPulse } from '../../components/metronome';
 
 export default function ProgramPlayScreen() {
@@ -126,20 +127,35 @@ export default function ProgramPlayScreen() {
     );
   }
 
-  const topPadding = Math.max(insets.top, 4);
-  const bottomPadding = Math.max(insets.bottom, 0);
-  
+  // 横画面時のノッチ回避: 左右のみ 44pt を採用
+  const safePadding = {
+    top: insets.top,
+    bottom: insets.bottom,
+    left: Math.max(insets.left, LANDSCAPE_SAFE_AREA_INSET),
+    right: Math.max(insets.right, LANDSCAPE_SAFE_AREA_INSET),
+  };
+
   // 現在のセクション内のプログレス（小節単位）
   const sectionProgress = currentSection && position 
     ? (position.measureInSection - 1 + (position.beatInMeasure / currentSection.timeSignature.numerator)) / currentSection.measures
     : 0;
 
   return (
-    <View style={[styles.container, { paddingBottom: bottomPadding }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: safePadding.top,
+          paddingBottom: safePadding.bottom,
+          paddingLeft: safePadding.left,
+          paddingRight: safePadding.right,
+        },
+      ]}
+    >
       <StatusBar hidden={isLandscape} />
 
       {/* 上段: ヘッダー */}
-      <View style={[styles.header, { paddingTop: topPadding }]}>
+      <View style={styles.header}>
         <Text style={styles.programName} numberOfLines={1}>
           {currentProgram.name}
         </Text>
@@ -160,7 +176,7 @@ export default function ProgramPlayScreen() {
       </View>
 
       {/* メインエリア: 2カラム */}
-      <View style={[styles.mainArea, { paddingBottom: bottomPadding }]}>
+      <View style={styles.mainArea}>
         {/* 左: 現在の再生情報（視覚的に強調） */}
         <View style={styles.nowPlayingPanel}>
           {/* ビートパルス */}

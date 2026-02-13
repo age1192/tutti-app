@@ -7,7 +7,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, Modal, Dimensions } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, typography, spacing } from '../../styles';
 import { TuningType, ToneType } from '../../types';
-import { OCTAVE_MIN, OCTAVE_MAX, PITCH_MIN, PITCH_MAX } from '../../utils/constants';
+import { OCTAVE_MIN, OCTAVE_MAX, PITCH_MIN, PITCH_MAX, LANDSCAPE_SAFE_AREA_INSET } from '../../utils/constants';
 import { TransposeKey, TRANSPOSE_SEMITONES } from '../../stores/useHarmonyStore';
 import { PresetSelector } from '../preset';
 
@@ -73,15 +73,33 @@ export function HarmonyControls({
     return () => subscription.remove();
   }, []);
 
-  // 横画面時はヘッダー上の余白を最小に（縦画面時のみ SafeArea を適用）
+  // 横画面時はホームで safe area 適用済み。縦画面時は insets を使用
   const topPadding = isLandscape ? 4 : Math.max(insets.top, spacing.sm);
+  const hPadLeft = Math.max(insets.left, LANDSCAPE_SAFE_AREA_INSET);
+  const hPadRight = Math.max(insets.right, LANDSCAPE_SAFE_AREA_INSET);
 
   // トランスポーズがよく使うものかチェック
   const isCommonTranspose = COMMON_TRANSPOSE_KEYS.includes(transpose);
 
   return (
     <>
-      <View style={[styles.wrapper, { paddingTop: topPadding }]}>
+      {/* 背景は画面端まで、コンテンツは余白内 */}
+      <View
+        style={[
+          styles.wrapperOuter,
+          { marginLeft: -hPadLeft, marginRight: -hPadRight },
+        ]}
+      >
+        <View
+          style={[
+            styles.wrapper,
+            {
+              paddingTop: topPadding,
+              paddingLeft: hPadLeft,
+              paddingRight: hPadRight,
+            },
+          ]}
+        >
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -223,6 +241,7 @@ export function HarmonyControls({
             <PresetSelector type="harmony" screenWidth={screenWidth} />
           </View>
         </ScrollView>
+        </View>
       </View>
 
       {/* トランスポーズ選択モーダル */}
@@ -260,11 +279,12 @@ export function HarmonyControls({
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
+  wrapperOuter: {
     backgroundColor: colors.background.secondary,
     borderBottomWidth: 1,
     borderBottomColor: colors.border.default,
   },
+  wrapper: {},
   container: {
     flexDirection: 'row',
     alignItems: 'flex-start',

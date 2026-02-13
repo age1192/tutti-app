@@ -21,7 +21,7 @@ import { usePresetStore } from '../stores/usePresetStore';
 import { useAudioEngine } from '../hooks';
 import { getEqualTemperamentFrequency } from '../utils/pitchUtils';
 import { chordNameToMidiNotes, transposeChordName, getChordPitchClasses } from '../utils/chordUtils';
-import { PITCH_DEFAULT, TEMPO_MIN, TEMPO_MAX, TIME_SIGNATURES } from '../utils/constants';
+import { PITCH_DEFAULT, TEMPO_MIN, TEMPO_MAX, TIME_SIGNATURES, LANDSCAPE_SAFE_AREA_INSET } from '../utils/constants';
 import { getTemplateById, isTemplateId } from '../utils/playbackTemplates';
 import { applyVoiceLeading, getInitialVoicing } from '../utils/voiceLeadingUtils';
 import { TimeSignatureSelector } from '../components/metronome/TimeSignatureSelector';
@@ -37,6 +37,36 @@ interface Measure {
   /** ユーザーがボイシングをカスタマイズした場合 true（この小節は声部連結なしでmidiNotesをそのまま使用） */
   hasCustomVoicing?: boolean;
 }
+
+// デフォルト表示用: template-basic（基本的な I-IV-V）の内容
+function getDefaultPlaybackState() {
+  const template = getTemplateById('template-basic');
+  if (template) {
+    return {
+      measures: template.measures.map((m) => ({ ...m, hasCustomVoicing: template.useSpecifiedVoicing ?? false })),
+      tempo: template.tempo,
+      timeSignature: template.timeSignature,
+      metronomeEnabled: template.metronomeEnabled,
+      useSpecifiedVoicing: template.useSpecifiedVoicing ?? false,
+      currentTemplateId: template.id as string | null,
+    };
+  }
+  return {
+    measures: [
+      { id: '1', chordName: 'C', midiNotes: chordNameToMidiNotes('C', 4) },
+      { id: '2', chordName: 'F', midiNotes: chordNameToMidiNotes('F', 4) },
+      { id: '3', chordName: 'G', midiNotes: chordNameToMidiNotes('G', 4) },
+      { id: '4', chordName: 'C', midiNotes: chordNameToMidiNotes('C', 4) },
+    ],
+    tempo: 120,
+    timeSignature: TIME_SIGNATURES[3],
+    metronomeEnabled: true,
+    useSpecifiedVoicing: false,
+    currentTemplateId: null,
+  };
+}
+
+const DEFAULT_PLAYBACK = getDefaultPlaybackState();
 
 // 12音の基本コード
 const ROOT_NOTES = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B'];
@@ -84,9 +114,10 @@ interface VoicingEditorModalProps {
   onCancel: () => void;
   startNote: (noteId: number, frequency: number, volume?: number, tone?: string) => void;
   stopAllNotes: () => void;
+  resumeAudioContextSync?: () => void;
 }
 
-function VoicingEditorModal({ visible, measure, onSave, onCancel, startNote, stopAllNotes }: VoicingEditorModalProps) {
+function VoicingEditorModal({ visible, measure, onSave, onCancel, startNote, stopAllNotes, resumeAudioContextSync }: VoicingEditorModalProps) {
   const [satbVoices, setSatbVoices] = useState<SatbVoice[]>([
     { pitchClass: 0, octave: 2 },
     { pitchClass: 0, octave: 3 },
@@ -170,6 +201,7 @@ function VoicingEditorModal({ visible, measure, onSave, onCancel, startNote, sto
   };
 
   const handlePreview = () => {
+    resumeAudioContextSync?.(); // iOS: ユーザージェスチャー内で同期的に resume
     stopAllNotes();
     const notes = buildMidiNotesFromSatb(satbVoices);
     notes.forEach((midiNote) => {
@@ -305,36 +337,31 @@ function VoicingEditorModal({ visible, measure, onSave, onCancel, startNote, sto
 export default function PlaybackScreen() {
   const insets = useSafeAreaInsets();
   const { tempo: metronomeTempo, timeSignature: metronomeTimeSignature, setTimeSignature } = useMetronomeStore();
-  const { startNote, stopNote, stopAllNotes, playClick } = useAudioEngine();
+  const { startNote, stopNote, stopAllNotes, playClick, resumeAudioContextSync } = useAudioEngine();
   const [dimensions, setDimensions] = useState(Dimensions.get('window'));
   
-  // コード進行の状態（デフォルトで C, F, G, C の4小節）
-  const [measures, setMeasures] = useState<Measure[]>([
-    { id: '1', chordName: 'C', midiNotes: chordNameToMidiNotes('C', 4) },
-    { id: '2', chordName: 'F', midiNotes: chordNameToMidiNotes('F', 4) },
-    { id: '3', chordName: 'G', midiNotes: chordNameToMidiNotes('G', 4) },
-    { id: '4', chordName: 'C', midiNotes: chordNameToMidiNotes('C', 4) },
-  ]);
+  // コード進行の状態（デフォルト: template-basic 基本的な I-IV-V）
+  const [measures, setMeasures] = useState<Measure[]>(DEFAULT_PLAYBACK.measures);
   const [isPlaying, setIsPlaying] = useState(false);
   const [manualMode, setManualMode] = useState(false); // 手動モード（キーボード/ペダルで進む）
   const [currentMeasureIndex, setCurrentMeasureIndex] = useState(0);
   const keyboardInputRef = useRef<TextInput>(null);
   const [selectingMeasureId, setSelectingMeasureId] = useState<string | null>(null);
-  const [tempo, setTempo] = useState(metronomeTempo);
-  const [timeSignature, setLocalTimeSignature] = useState(metronomeTimeSignature);
-  const [metronomeEnabled, setMetronomeEnabled] = useState(true);
+  const [tempo, setTempo] = useState(DEFAULT_PLAYBACK.tempo);
+  const [timeSignature, setLocalTimeSignature] = useState(DEFAULT_PLAYBACK.timeSignature);
+  const [metronomeEnabled, setMetronomeEnabled] = useState(DEFAULT_PLAYBACK.metronomeEnabled);
   const [currentBeat, setCurrentBeat] = useState(0);
   const [isCountIn, setIsCountIn] = useState(false);
-  const [tempoInput, setTempoInput] = useState(metronomeTempo.toString());
+  const [tempoInput, setTempoInput] = useState(DEFAULT_PLAYBACK.tempo.toString());
   const [presetManagerVisible, setPresetManagerVisible] = useState(false);
   const [savePresetModalVisible, setSavePresetModalVisible] = useState(false);
   const [presetName, setPresetName] = useState('');
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
   const [transposeSemitones, setTransposeSemitones] = useState(0);
   /** テンプレート由来の場合 true：measures[].midiNotes を直接使用（声部連結なし） */
-  const [useSpecifiedVoicing, setUseSpecifiedVoicing] = useState(false);
+  const [useSpecifiedVoicing, setUseSpecifiedVoicing] = useState(DEFAULT_PLAYBACK.useSpecifiedVoicing);
   /** 現在読み込まれているテンプレートID（テンプレートの場合のみ設定、ユーザー編集時はnull） */
-  const [currentTemplateId, setCurrentTemplateId] = useState<string | null>(null);
+  const [currentTemplateId, setCurrentTemplateId] = useState<string | null>(DEFAULT_PLAYBACK.currentTemplateId);
   /** ボイシング編集モーダルの表示状態（小節ID） */
   const [editingVoicingMeasureId, setEditingVoicingMeasureId] = useState<string | null>(null);
   const { savePlaybackPreset, loadPlaybackPresets, playbackPresets } = usePresetStore();
@@ -872,6 +899,8 @@ export default function PlaybackScreen() {
         // コードが入力されていない場合は警告を表示（オプション）
         return;
       }
+      // iOS: 再生ボタン押下（ユーザージェスチャー）内で同期的に resume を呼ぶ
+      resumeAudioContextSync();
       setIsPlaying(true);
     }
   };
@@ -1002,9 +1031,14 @@ export default function PlaybackScreen() {
       const preset = template ?? userPreset;
       if (!preset) return;
 
+      // テンプレートの useSpecifiedVoicing が true の場合、各小節の midiNotes をそのまま使用
+      // （声部連結を適用せず、テンプレートで指定した音の高さを維持する）
+      const templateUsesSpecifiedVoicing = template?.useSpecifiedVoicing === true;
       const measuresWithVoicing = preset.measures.map((m) => ({
         ...m,
-        hasCustomVoicing: template ? false : m.hasCustomVoicing,
+        hasCustomVoicing: template
+          ? templateUsesSpecifiedVoicing  // テンプレート: useSpecifiedVoicing に従う
+          : m.hasCustomVoicing,           // ユーザープリセット: 元の値を維持
       }));
 
       setMeasures(measuresWithVoicing);
@@ -1013,7 +1047,7 @@ export default function PlaybackScreen() {
       setLocalTimeSignature(preset.timeSignature);
       setTimeSignature(preset.timeSignature);
       setMetronomeEnabled(preset.metronomeEnabled);
-      setUseSpecifiedVoicing(false);
+      setUseSpecifiedVoicing(templateUsesSpecifiedVoicing);
       setCurrentTemplateId(template ? presetId : null);
       setPresetManagerVisible(false);
     } catch (err) {
@@ -1093,7 +1127,7 @@ export default function PlaybackScreen() {
   }, [selectingMeasureId, handleSelectChord]);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       <StatusBar hidden />
       
       {/* 非表示のキーボード入力（キーボード/ペダルイベント検出用） */}
@@ -1114,8 +1148,25 @@ export default function PlaybackScreen() {
         />
       )}
       
-      {/* ヘッダー */}
-      <View style={styles.header}>
+      {/* ヘッダー（背景は画面端まで、コンテンツは余白内） */}
+      <View
+        style={[
+          styles.headerOuter,
+          {
+            marginLeft: -Math.max(insets.left, LANDSCAPE_SAFE_AREA_INSET),
+            marginRight: -Math.max(insets.right, LANDSCAPE_SAFE_AREA_INSET),
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.header,
+            {
+              paddingLeft: Math.max(insets.left, LANDSCAPE_SAFE_AREA_INSET),
+              paddingRight: Math.max(insets.right, LANDSCAPE_SAFE_AREA_INSET),
+            },
+          ]}
+        >
         <View style={styles.titleRow}>
           <Text style={styles.title}>コード再生</Text>
         </View>
@@ -1176,6 +1227,7 @@ export default function PlaybackScreen() {
               <Text style={styles.settingsButtonText}>⚙</Text>
             </Pressable>
           </View>
+        </View>
         </View>
       </View>
 
@@ -1482,6 +1534,7 @@ export default function PlaybackScreen() {
         onCancel={handleCancelVoicingEdit}
         startNote={startNote}
         stopAllNotes={stopAllNotes}
+        resumeAudioContextSync={resumeAudioContextSync}
       />
 
       {/* プリセット保存モーダル */}
@@ -1677,11 +1730,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background.primary,
     position: 'relative',
   },
-  header: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+  headerOuter: {
+    backgroundColor: colors.background.secondary,
     borderBottomWidth: 1,
     borderBottomColor: colors.border.default,
+  },
+  header: {
+    paddingVertical: spacing.sm,
   },
   titleRow: {
     flexDirection: 'row',
