@@ -3,7 +3,7 @@
  * 1小節ごとに拍子が変わる曲（アルメニアンダンスなど）の入力支援
  */
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Modal, ScrollView, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Modal, ScrollView, TextInput, Platform } from 'react-native';
 import { TimeSignature } from '../../types';
 import { colors, spacing } from '../../styles';
 import { TIME_SIGNATURES } from '../../utils/constants';
@@ -40,7 +40,12 @@ export const TimeSignatureSequenceEditor: React.FC<TimeSignatureSequenceEditorPr
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+    >
       <View style={styles.overlay}>
         <View style={styles.modal}>
           <View style={styles.header}>

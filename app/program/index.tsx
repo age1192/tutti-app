@@ -275,7 +275,12 @@ export default function ProgramListScreen() {
       )}
 
       {/* 新規作成モーダル */}
-      <Modal visible={showNewModal} transparent animationType="fade">
+      <Modal
+        visible={showNewModal}
+        transparent
+        animationType="fade"
+        presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
             <Text style={styles.modalTitle}>新規プログラム作成</Text>

@@ -45,9 +45,13 @@ export function PresetManager({ visible, onClose, type, onSelect }: PresetManage
 
   useEffect(() => {
     if (visible) {
-      loadAllPresets().catch((err) => {
-        console.error('Failed to load presets:', err);
-      });
+      // iOS: モーダル表示完了後に読み込み（同時実行でクラッシュする場合がある）
+      const timer = setTimeout(() => {
+        loadAllPresets().catch((err) => {
+          console.error('Failed to load presets:', err);
+        });
+      }, Platform.OS === 'ios' ? 100 : 0);
+      return () => clearTimeout(timer);
     }
   }, [visible, loadAllPresets]);
 
@@ -114,7 +118,13 @@ export function PresetManager({ visible, onClose, type, onSelect }: PresetManage
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+    >
       <View style={styles.overlay}>
         <View style={styles.modal}>
           <View style={styles.header}>

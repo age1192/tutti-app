@@ -31,7 +31,9 @@ export function TemplateSelector({ visible, onClose, onSelect }: TemplateSelecto
 
   useEffect(() => {
     if (visible) {
-      loadTemplates();
+      // iOS: モーダル表示完了後に読み込み
+      const timer = setTimeout(() => loadTemplates(), Platform.OS === 'ios' ? 100 : 0);
+      return () => clearTimeout(timer);
     }
   }, [visible, loadTemplates]);
 
@@ -61,7 +63,13 @@ export function TemplateSelector({ visible, onClose, onSelect }: TemplateSelecto
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+    >
       <View style={styles.overlay}>
         <View style={styles.modal}>
           <View style={styles.header}>

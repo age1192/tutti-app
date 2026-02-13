@@ -30,8 +30,15 @@ const SUBDIVISION_COUNTS: Record<SubdivisionType, number> = {
   sixteenth: 4,  // 16分音符: 1拍に4回
 };
 
-// 分割タイプの優先順位（細かい方が優先）
-const SUBDIVISION_TYPES: SubdivisionType[] = ['sixteenth', 'triplet', 'eighth', 'quarter'];
+// 12スロットグリッド（2,3,4のLCM）で全分割を表現。同時刻の重複を避けるため1スロット1音に集約
+const SLOTS_PER_BEAT = 12;
+// 各分割タイプが鳴るスロット番号（0〜11）
+const SUBDIVISION_SLOTS: Record<SubdivisionType, number[]> = {
+  quarter: [0],
+  eighth: [0, 6],
+  triplet: [0, 4, 8],
+  sixteenth: [0, 3, 6, 9],
+};
 
 export function useMetronome() {
   const {
@@ -80,59 +87,49 @@ export function useMetronome() {
     subdivisionTimersRef.current = [];
   }, []);
 
-  // 特定のタイミングで音を鳴らすべきかチェック
-  // position: 0 = 拍頭, 1 = 2番目, 2 = 3番目, 3 = 4番目
-  const shouldPlayAtPosition = (type: SubdivisionType, position: number, count: number): boolean => {
-    const subdivisionCount = SUBDIVISION_COUNTS[type];
-    // その分割タイプのタイミングに一致するかチェック
-    // 例: 8分(count=2)の場合、position 0, 2 で鳴る（4分割の0, 2番目）
-    // 例: 3連(count=3)の場合、position 0, 1.33, 2.66 で鳴る
-    const interval = count / subdivisionCount;
-    return position % interval < 0.01 || Math.abs(position % interval - interval) < 0.01;
-  };
-
-  // 1拍内の全ての分割音をスケジュール
-  // Web Audio APIの精密スケジュールを使用（setTimeoutより確実、特に16分音符）
+  // 1拍内の分割音をスケジュール（同時刻の重複を避け、1スロット1音に集約してテンポの乱れを防止）
   const scheduleSubdivisions = useCallback((isAccent: boolean) => {
     clearSubdivisionTimers();
     if (!scheduleSubdivisionClickAt || !getCurrentTime) return;
 
+    const state = useMetronomeStore.getState();
+    const settings = state.subdivisionSettings;
+    const tone = state.tone;
     const baseTime = getCurrentTime();
     const beatIntervalSec = beatIntervalMs / 1000;
 
-    // 各分割タイプについて、全てのタイミングで音をスケジュール
-    SUBDIVISION_TYPES.forEach((type) => {
-      const count = SUBDIVISION_COUNTS[type];
-      for (let i = 0; i < count; i++) {
-        const offsetSec = (beatIntervalSec / count) * i;
-        const scheduledTime = baseTime + offsetSec;
-
-        if (i === 0) {
-          if (type === 'quarter') {
-            const volume = useMetronomeStore.getState().subdivisionSettings.quarter;
-            const latestTone = useMetronomeStore.getState().tone;
-            if (volume > 0) {
-              playClick(isAccent, volume * 0.7, latestTone);
-            }
-          } else {
-            const volume = useMetronomeStore.getState().subdivisionSettings[type];
-            const latestTone = useMetronomeStore.getState().tone;
-            if (volume > 0) {
-              scheduleSubdivisionClickAt(scheduledTime, type, true, volume * 0.6, latestTone);
-            }
-          }
-        } else {
-          const volume = useMetronomeStore.getState().subdivisionSettings[type];
-          const latestTone = useMetronomeStore.getState().tone;
-          if (volume > 0) {
-            scheduleSubdivisionClickAt(scheduledTime, type, false, volume * 0.6, latestTone);
-          }
-          // ビジュアル表示用にsetTimeoutでsetSubdivision（UI更新はJSスレッドで問題なし）
-          const timer = setTimeout(() => setSubdivision(i), offsetSec * 1000);
-          subdivisionTimersRef.current.push(timer);
+    // 各スロットで鳴る最大音量と、そのスロットで使う分割タイプを集約
+    const slotData: Map<number, { volume: number; type: SubdivisionType }> = new Map();
+    (['quarter', 'eighth', 'triplet', 'sixteenth'] as SubdivisionType[]).forEach((type) => {
+      const vol = type === 'quarter' ? settings.quarter * 0.7 : settings[type] * 0.6;
+      if (vol <= 0) return;
+      SUBDIVISION_SLOTS[type].forEach((slot) => {
+        const existing = slotData.get(slot);
+        if (!existing || existing.volume < vol) {
+          slotData.set(slot, { volume: vol, type });
         }
-      }
+      });
     });
+
+    // スロット0（拍頭）: quarter があれば playClick、なければ scheduleSubdivisionClickAt
+    const slot0 = slotData.get(0);
+    if (slot0 && slot0.volume > 0) {
+      if (slot0.type === 'quarter') {
+        playClick(isAccent, slot0.volume, tone);
+      } else {
+        scheduleSubdivisionClickAt(baseTime, slot0.type, true, slot0.volume, tone);
+      }
+    }
+
+    // スロット1〜11: 各1音のみスケジュール
+    for (let slot = 1; slot < SLOTS_PER_BEAT; slot++) {
+      const data = slotData.get(slot);
+      if (!data || data.volume <= 0) continue;
+      const offsetSec = (beatIntervalSec * slot) / SLOTS_PER_BEAT;
+      scheduleSubdivisionClickAt(baseTime + offsetSec, data.type, false, data.volume, tone);
+      const timer = setTimeout(() => setSubdivision(slot), offsetSec * 1000);
+      subdivisionTimersRef.current.push(timer);
+    }
   }, [beatIntervalMs, clearSubdivisionTimers, playClick, scheduleSubdivisionClickAt, getCurrentTime, setSubdivision]);
 
   // メトロノームのティック処理（拍頭）

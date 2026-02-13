@@ -233,6 +233,7 @@ function VoicingEditorModal({ visible, measure, onSave, onCancel, startNote, sto
       transparent
       animationType="fade"
       onRequestClose={handleCancel}
+      presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
     >
       <View style={styles.modalOverlay}>
         <ScrollView
@@ -1551,7 +1552,12 @@ export default function PlaybackScreen() {
       />
 
       {/* プリセット保存モーダル */}
-      <Modal visible={savePresetModalVisible} transparent animationType="none">
+      <Modal
+        visible={savePresetModalVisible}
+        transparent
+        animationType="none"
+        presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.presetSaveModalContent}>
             <Text style={styles.modalTitle}>プリセット名</Text>
@@ -1598,6 +1604,7 @@ export default function PlaybackScreen() {
         transparent
         animationType="fade"
         onRequestClose={() => setSettingsModalVisible(false)}
+        presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
       >
         <View style={styles.settingsModalOverlay}>
           <Pressable

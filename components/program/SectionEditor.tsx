@@ -12,6 +12,7 @@ import {
   Modal,
   ScrollView,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { Section, TimeSignature, TempoChangeType } from '../../types';
 import { colors, typography, spacing } from '../../styles';
@@ -140,7 +141,12 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
   );
 
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+    >
       <View style={styles.overlay}>
         <View style={[styles.modal, isLandscape && styles.modalLandscape]}>
           {/* ヘッダー */}

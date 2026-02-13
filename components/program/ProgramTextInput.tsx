@@ -4,7 +4,7 @@
  * 4/4(4)-3/4(4)-2+2+3/8(2) のような形式でプログラムを入力
  */
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, Modal, Pressable, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Modal, Pressable, TextInput, ScrollView, Platform } from 'react-native';
 import { Section } from '../../types';
 import { colors, spacing } from '../../styles';
 import { parseProgramText, SYNTAX_HELP, sectionsToText } from '../../utils/programTextParser';
@@ -90,7 +90,12 @@ export const ProgramTextInput: React.FC<ProgramTextInputProps> = ({
   }, [parseResult, onApply, onClose]);
 
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+    >
       <View style={styles.overlay}>
         <View style={styles.modal}>
           <View style={styles.header}>

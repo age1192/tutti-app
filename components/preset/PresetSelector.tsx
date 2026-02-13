@@ -178,7 +178,12 @@ export function PresetSelector({ type, screenWidth = 800 }: PresetSelectorProps)
       </View>
 
       {/* 保存モーダル */}
-      <Modal visible={saveModalVisible} transparent animationType="fade">
+      <Modal
+        visible={saveModalVisible}
+        transparent
+        animationType="fade"
+        presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>プリセット名</Text>

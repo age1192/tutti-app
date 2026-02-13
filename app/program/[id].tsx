@@ -52,13 +52,14 @@ export default function ProgramEditorScreen() {
   const [qrExportModalVisible, setQrExportModalVisible] = useState(false);
   const [textInputModalVisible, setTextInputModalVisible] = useState(false);
 
-  // 横画面固定
+  // 横画面固定（マウント時とフォーカス時の両方で実行し、縦向き表示を防ぐ）
+  useEffect(() => {
+    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+  }, []);
   useFocusEffect(
     useCallback(() => {
       ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-      return () => {
-        // 画面を離れる時は何もしない（home.tsxで管理）
-      };
+      return () => {};
     }, [])
   );
 

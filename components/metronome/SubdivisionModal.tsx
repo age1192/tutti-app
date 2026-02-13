@@ -2,7 +2,7 @@
  * 拍分割（サブディビジョン）モーダル
  * 左右からスライドインするモーダルで音量調整を行う
  */
-import { View, Text, StyleSheet, Pressable, Modal } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Modal, Platform } from 'react-native';
 import { useEffect } from 'react';
 import Animated, {
   useAnimatedStyle,
@@ -80,6 +80,7 @@ export function SubdivisionModal({
       transparent
       animationType="none"
       onRequestClose={onClose}
+      presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
     >
       <View style={styles.container}>
         {/* バックドロップ */}
