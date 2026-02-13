@@ -2,7 +2,8 @@
  * プリセット選択UI
  */
 import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, Modal, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, Alert, Platform, KeyboardAvoidingView, Keyboard } from 'react-native';
+import { FadeModal } from '../ui/FadeModal';
 import { colors, typography, spacing } from '../../styles';
 import { PresetManager } from './PresetManager';
 import { usePresetStore } from '../../stores/usePresetStore';
@@ -187,16 +188,19 @@ export function PresetSelector({ type, screenWidth = 800 }: PresetSelectorProps)
       </View>
 
       {/* 保存モーダル */}
-      <Modal
+      <FadeModal
         visible={saveModalVisible}
         transparent
-        animationType="fade"
         supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
         presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>プリセット名</Text>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoid}
+        >
+          <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+            <Pressable onPress={() => {}} style={styles.modalContent}>
+              <Text style={styles.modalTitle}>プリセット名</Text>
             <TextInput
               style={styles.input}
               value={presetName}
@@ -219,9 +223,10 @@ export function PresetSelector({ type, screenWidth = 800 }: PresetSelectorProps)
                 <Text style={[styles.modalButtonText, styles.modalButtonTextSave]}>保存</Text>
               </Pressable>
             </View>
-          </View>
-        </View>
-      </Modal>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </FadeModal>
 
       {/* プリセット管理モーダル */}
       <PresetManager
@@ -246,6 +251,9 @@ const styles = StyleSheet.create({
   buttonText: {
     color: colors.background.secondary,
     fontWeight: '700',
+  },
+  keyboardAvoid: {
+    flex: 1,
   },
   modalOverlay: {
     flex: 1,

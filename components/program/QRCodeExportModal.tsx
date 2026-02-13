@@ -3,7 +3,8 @@
  * プログラムをQRコードとして表示
  */
 import React, { useRef } from 'react';
-import { View, Text, StyleSheet, Modal, Pressable, Dimensions, Platform, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Dimensions, Platform, Alert, ScrollView } from 'react-native';
+import { FadeModal } from '../ui/FadeModal';
 import QRCode from 'react-native-qrcode-svg';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
@@ -80,10 +81,9 @@ export const QRCodeExportModal: React.FC<QRCodeExportModalProps> = ({
   };
 
   return (
-    <Modal
+    <FadeModal
       visible={visible}
       transparent
-      animationType="fade"
       supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
       presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
     >
@@ -127,7 +127,7 @@ export const QRCodeExportModal: React.FC<QRCodeExportModalProps> = ({
           </View>
         </View>
       </View>
-    </Modal>
+    </FadeModal>
   );
 };
 

@@ -6,7 +6,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Modal,
   Pressable,
   TextInput,
   ScrollView,
@@ -14,6 +13,7 @@ import {
   Platform,
   InteractionManager,
 } from 'react-native';
+import { FadeModal } from '../ui/FadeModal';
 import { colors, typography, spacing } from '../../styles';
 import { usePresetStore } from '../../stores/usePresetStore';
 import { MetronomePreset, HarmonyPreset, PlaybackPreset } from '../../types';
@@ -119,10 +119,9 @@ export function PresetManager({ visible, onClose, type, onSelect }: PresetManage
   };
 
   return (
-    <Modal
+    <FadeModal
       visible={visible}
       transparent
-      animationType={Platform.OS === 'ios' ? 'none' : 'fade'}
       supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
       onRequestClose={onClose}
       presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
@@ -183,7 +182,7 @@ export function PresetManager({ visible, onClose, type, onSelect }: PresetManage
           </ScrollView>
         </View>
       </View>
-    </Modal>
+    </FadeModal>
   );
 }
 

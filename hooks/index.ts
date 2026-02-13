@@ -1,4 +1,5 @@
 export { useAudioEngine } from './useAudioEngine';
+export { useFadeIn } from './useFadeIn';
 export { useMetronome } from './useMetronome';
 export { useProgramMetronome } from './useProgramMetronome';
 export type { PlaybackPosition } from './useProgramMetronome';

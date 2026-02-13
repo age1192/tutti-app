@@ -3,7 +3,8 @@
  * QRコードをスキャン、またはファイルからインポート
  */
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, Pressable, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert, Platform } from 'react-native';
+import { FadeModal } from '../ui/FadeModal';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
@@ -248,10 +249,9 @@ export const QRCodeImportModal: React.FC<QRCodeImportModalProps> = ({
   };
 
   return (
-    <Modal
+    <FadeModal
       visible={visible}
       transparent
-      animationType="fade"
       presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
       supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
     >
@@ -338,7 +338,7 @@ export const QRCodeImportModal: React.FC<QRCodeImportModalProps> = ({
           </View>
         </Pressable>
       </Pressable>
-    </Modal>
+    </FadeModal>
   );
 };
 

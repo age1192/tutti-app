@@ -2,7 +2,8 @@
  * ローディングオーバーレイコンポーネント
  */
 import React from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { FadeModal } from './FadeModal';
 import { colors, typography, spacing } from '../../styles';
 
 interface LoadingOverlayProps {
@@ -15,10 +16,9 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({
   message = '読み込み中...',
 }) => {
   return (
-    <Modal
+    <FadeModal
       visible={visible}
       transparent
-      animationType="fade"
       supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
     >
       <View style={styles.overlay}>
@@ -27,7 +27,7 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({
           <Text style={styles.message}>{message}</Text>
         </View>
       </View>
-    </Modal>
+    </FadeModal>
   );
 };
 

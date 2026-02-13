@@ -3,7 +3,8 @@
  * ボタンサイズを大きく、トランスポーズUI改善
  */
 import { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Modal, Dimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions, Platform } from 'react-native';
+import { FadeModal } from '../ui/FadeModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, typography, spacing } from '../../styles';
 import { TuningType, ToneType } from '../../types';
@@ -245,10 +246,9 @@ export function HarmonyControls({
       </View>
 
       {/* トランスポーズ選択モーダル */}
-      <Modal
+      <FadeModal
         visible={showTransposeModal}
         transparent
-        animationType="fade"
         supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
         presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
       >
@@ -279,7 +279,7 @@ export function HarmonyControls({
             </Pressable>
           </View>
         </View>
-      </Modal>
+      </FadeModal>
     </>
   );
 }

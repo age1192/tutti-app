@@ -10,12 +10,14 @@ import {
   FlatList,
   Alert,
   TextInput,
-  Modal,
   ActivityIndicator,
   Dimensions,
   StatusBar,
   Platform,
+  KeyboardAvoidingView,
+  Keyboard,
 } from 'react-native';
+import { FadeModal } from '../../components/ui/FadeModal';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ScreenOrientation from 'expo-screen-orientation';
@@ -287,15 +289,18 @@ export default function ProgramListScreen() {
       )}
 
       {/* 新規作成モーダル */}
-      <Modal
+      <FadeModal
         visible={showNewModal}
         transparent
-        animationType="fade"
         supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
         presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modal}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoid}
+        >
+          <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+            <Pressable onPress={() => {}} style={styles.modal}>
             <Text style={styles.modalTitle}>新規プログラム作成</Text>
             <TextInput
               style={styles.modalInput}
@@ -322,9 +327,10 @@ export default function ProgramListScreen() {
                 <Text style={styles.modalCreateText}>作成</Text>
               </Pressable>
             </View>
-          </View>
-        </View>
-      </Modal>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </FadeModal>
 
       {/* QRコードインポートモーダル */}
       <QRCodeImportModal
@@ -494,6 +500,9 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 12,
     color: colors.text.muted,
+  },
+  keyboardAvoid: {
+    flex: 1,
   },
   modalOverlay: {
     flex: 1,

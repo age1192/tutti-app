@@ -9,11 +9,11 @@ import {
   TextInput,
   Pressable,
   Switch,
-  Modal,
   ScrollView,
   Dimensions,
   Platform,
 } from 'react-native';
+import { FadeModal } from '../ui/FadeModal';
 import { Section, TimeSignature, TempoChangeType } from '../../types';
 import { colors, typography, spacing } from '../../styles';
 import { TIME_SIGNATURES, TEMPO_MIN, TEMPO_MAX } from '../../utils/constants';
@@ -141,10 +141,9 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
   );
 
   return (
-    <Modal
+    <FadeModal
       visible={visible}
       transparent
-      animationType="fade"
       presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
       supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
     >
@@ -388,7 +387,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
           </View>
         </View>
       </View>
-    </Modal>
+    </FadeModal>
   );
 };
 

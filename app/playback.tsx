@@ -3,7 +3,8 @@
  * 入力したコードをテンポに沿って再生する機能
  * アイディアルプロ風の小節ごとのコード進行機能
  */
-import { View, Text, StyleSheet, Pressable, StatusBar, ScrollView, Dimensions, Modal, Animated, TextInput, Alert, Platform, AppState, AppStateStatus } from 'react-native';
+import { View, Text, StyleSheet, Pressable, StatusBar, ScrollView, Dimensions, Modal, Animated, TextInput, Alert, Platform, AppState, AppStateStatus, KeyboardAvoidingView, Keyboard } from 'react-native';
+import { FadeModal } from '../components/ui/FadeModal';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -228,10 +229,9 @@ function VoicingEditorModal({ visible, measure, onSave, onCancel, startNote, sto
   if (chordPitchClasses.length === 0) return null;
 
   return (
-    <Modal
+    <FadeModal
       visible={visible}
       transparent
-      animationType="fade"
       onRequestClose={handleCancel}
       presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
       supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
@@ -333,7 +333,7 @@ function VoicingEditorModal({ visible, measure, onSave, onCancel, startNote, sto
           </View>
         </ScrollView>
       </View>
-    </Modal>
+    </FadeModal>
   );
 }
 
@@ -1498,10 +1498,9 @@ export default function PlaybackScreen() {
 
 
       {/* コード選択モーダル - 常にレンダリングして表示速度を改善 */}
-      <Modal
+      <FadeModal
         visible={selectingMeasureId !== null}
         transparent
-        animationType="fade"
         onRequestClose={() => setSelectingMeasureId(null)}
         hardwareAccelerated={false}
         presentationStyle="overFullScreen"
@@ -1542,7 +1541,7 @@ export default function PlaybackScreen() {
             </Pressable>
           </View>
         </View>
-      </Modal>
+      </FadeModal>
 
       {/* ボイシング編集モーダル */}
       <VoicingEditorModal
@@ -1560,15 +1559,18 @@ export default function PlaybackScreen() {
       />
 
       {/* プリセット保存モーダル */}
-      <Modal
+      <FadeModal
         visible={savePresetModalVisible}
         transparent
-        animationType="none"
         presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
         supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.presetSaveModalContent}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoid}
+        >
+          <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+            <View style={styles.presetSaveModalContent}>
             <Text style={styles.modalTitle}>プリセット名</Text>
             <TextInput
               style={styles.presetSaveInput}
@@ -1596,8 +1598,9 @@ export default function PlaybackScreen() {
               </Pressable>
             </View>
           </View>
-        </View>
-      </Modal>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </FadeModal>
 
       {/* プリセット管理モーダル */}
       <PresetManager
@@ -1608,10 +1611,9 @@ export default function PlaybackScreen() {
       />
 
       {/* 設定モーダル */}
-      <Modal
+      <FadeModal
         visible={settingsModalVisible}
         transparent
-        animationType="fade"
         onRequestClose={() => setSettingsModalVisible(false)}
         presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
         supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
@@ -1749,7 +1751,7 @@ export default function PlaybackScreen() {
             </ScrollView>
           </View>
         </View>
-      </Modal>
+      </FadeModal>
     </View>
   );
 }
@@ -2531,6 +2533,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.text.secondary,
+  },
+  keyboardAvoid: {
+    flex: 1,
   },
   presetSaveModalContent: {
     backgroundColor: colors.background.secondary,

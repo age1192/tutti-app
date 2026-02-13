@@ -6,7 +6,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Modal,
   Pressable,
   ScrollView,
   TextInput,
@@ -14,6 +13,7 @@ import {
   Platform,
   InteractionManager,
 } from 'react-native';
+import { FadeModal } from '../ui/FadeModal';
 import { colors, typography, spacing } from '../../styles';
 import { useProgramStore } from '../../stores/useProgramStore';
 import { Program } from '../../types';
@@ -63,10 +63,9 @@ export function TemplateSelector({ visible, onClose, onSelect }: TemplateSelecto
   };
 
   return (
-    <Modal
+    <FadeModal
       visible={visible}
       transparent
-      animationType={Platform.OS === 'ios' ? 'none' : 'fade'}
       supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
       onRequestClose={onClose}
       presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
@@ -148,7 +147,7 @@ export function TemplateSelector({ visible, onClose, onSelect }: TemplateSelecto
           )}
         </View>
       </View>
-    </Modal>
+    </FadeModal>
   );
 }
 

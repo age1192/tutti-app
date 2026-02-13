@@ -2,7 +2,8 @@
  * 拍分割（サブディビジョン）モーダル
  * 左右からスライドインするモーダルで音量調整を行う
  */
-import { View, Text, StyleSheet, Pressable, Modal, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
+import { FadeModal } from '../ui/FadeModal';
 import { useEffect } from 'react';
 import Animated, {
   useAnimatedStyle,
@@ -75,10 +76,9 @@ export function SubdivisionModal({
   }));
 
   return (
-    <Modal
+    <FadeModal
       visible={visible}
       transparent
-      animationType="none"
       supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
       onRequestClose={onClose}
       presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
@@ -173,7 +173,7 @@ export function SubdivisionModal({
           </View>
         </Animated.View>
       </View>
-    </Modal>
+    </FadeModal>
   );
 }
 
