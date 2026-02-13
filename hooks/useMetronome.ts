@@ -59,7 +59,7 @@ export function useMetronome() {
     reset,
   } = useMetronomeStore();
 
-  const { playClick, playSubdivisionClick, isWebAudioSupported, ensureAudioContextResumed } = useAudioEngine();
+  const { playClick, playSubdivisionClick, scheduleSubdivisionClickAt, getCurrentTime, isWebAudioSupported, ensureAudioContextResumed } = useAudioEngine();
   const { settings } = useSettingsStore();
   
   // タイマー参照
@@ -92,57 +92,48 @@ export function useMetronome() {
   };
 
   // 1拍内の全ての分割音をスケジュール
-  // 常に最小単位（16分音符相当）でスケジュールし、音量で制御
+  // Web Audio APIの精密スケジュールを使用（setTimeoutより確実、特に16分音符）
   const scheduleSubdivisions = useCallback((isAccent: boolean) => {
     clearSubdivisionTimers();
-    
-    // 最新の状態を取得
-    const state = useMetronomeStore.getState();
-    const currentTone = state.tone;
-    
+    if (!scheduleSubdivisionClickAt || !getCurrentTime) return;
+
+    const baseTime = getCurrentTime();
+    const beatIntervalSec = beatIntervalMs / 1000;
+
     // 各分割タイプについて、全てのタイミングで音をスケジュール
     SUBDIVISION_TYPES.forEach((type) => {
       const count = SUBDIVISION_COUNTS[type];
-      
-      // このタイプの全てのタイミングをスケジュール
       for (let i = 0; i < count; i++) {
-        const delay = (beatIntervalMs / count) * i;
-        
+        const offsetSec = (beatIntervalSec / count) * i;
+        const scheduledTime = baseTime + offsetSec;
+
         if (i === 0) {
-          // 拍頭の音
-          // 4分音符の場合はplayClick（アクセント対応）
-          // それ以外はplaySubdivisionClick
           if (type === 'quarter') {
-            // 音量とtoneはリアルタイムで取得
             const volume = useMetronomeStore.getState().subdivisionSettings.quarter;
             const latestTone = useMetronomeStore.getState().tone;
             if (volume > 0) {
               playClick(isAccent, volume * 0.7, latestTone);
             }
           } else {
-            // 拍頭でも分割音を鳴らす（8分、3連、16分）
             const volume = useMetronomeStore.getState().subdivisionSettings[type];
             const latestTone = useMetronomeStore.getState().tone;
             if (volume > 0) {
-              playSubdivisionClick(type, true, volume * 0.6, latestTone);
+              scheduleSubdivisionClickAt(scheduledTime, type, true, volume * 0.6, latestTone);
             }
           }
         } else {
-          // 拍頭以外の分割音をスケジュール
-          const timer = setTimeout(() => {
-            // 音量とtoneはリアルタイムで取得（スライダー操作中でも反映）
-            const currentVolume = useMetronomeStore.getState().subdivisionSettings[type];
-            const latestTone = useMetronomeStore.getState().tone;
-            if (currentVolume > 0) {
-              playSubdivisionClick(type, false, currentVolume * 0.6, latestTone);
-              setSubdivision(i);
-            }
-          }, delay);
+          const volume = useMetronomeStore.getState().subdivisionSettings[type];
+          const latestTone = useMetronomeStore.getState().tone;
+          if (volume > 0) {
+            scheduleSubdivisionClickAt(scheduledTime, type, false, volume * 0.6, latestTone);
+          }
+          // ビジュアル表示用にsetTimeoutでsetSubdivision（UI更新はJSスレッドで問題なし）
+          const timer = setTimeout(() => setSubdivision(i), offsetSec * 1000);
           subdivisionTimersRef.current.push(timer);
         }
       }
     });
-  }, [beatIntervalMs, clearSubdivisionTimers, playClick, playSubdivisionClick, setSubdivision]);
+  }, [beatIntervalMs, clearSubdivisionTimers, playClick, scheduleSubdivisionClickAt, getCurrentTime, setSubdivision]);
 
   // メトロノームのティック処理（拍頭）
   const handleTick = useCallback(() => {
@@ -198,18 +189,22 @@ export function useMetronome() {
     }
   }, [isPlaying, settings?.backgroundPlayback, ensureAudioContextResumed]);
 
-  // AppStateの変化を監視してフォアグラウンド復帰時にAudioContextをresume
+  // AppStateの変化を監視
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active' && isPlaying) {
         // フォアグラウンドに戻ったらAudioContextを再開
         ensureAudioContextResumed();
       }
+      // バックグラウンド再生OFF時: バックグラウンドに移ったら停止
+      if (nextAppState === 'background' && !settings?.backgroundPlayback && isPlaying) {
+        stop();
+      }
     };
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => subscription.remove();
-  }, [isPlaying, ensureAudioContextResumed]);
+  }, [isPlaying, settings?.backgroundPlayback, ensureAudioContextResumed, stop]);
 
   // メトロノームの開始/停止を監視
   // 注意: subdivisionSettingsは依存に含めない（リアルタイム反映のため）

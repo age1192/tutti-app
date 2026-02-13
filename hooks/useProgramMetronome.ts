@@ -3,8 +3,10 @@
  * 複数セクションの自動遷移と再生を管理
  */
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import { Program, Section } from '../types';
 import { useAudioEngine } from './useAudioEngine';
+import { useSettingsStore } from '../stores/useSettingsStore';
 import { getPositionInfo, getTotalBeats, isAccentBeat, getEstimatedDuration } from '../utils/programUtils';
 
 export interface PlaybackPosition {
@@ -122,6 +124,7 @@ function getElapsedTime(program: Program, totalBeat: number): number {
 
 export function useProgramMetronome(program: Program | null): UseProgramMetronomeReturn {
   const { playClick, isWebAudioSupported } = useAudioEngine();
+  const { settings } = useSettingsStore();
 
   // 状態
   const [isPlaying, setIsPlaying] = useState(false);
@@ -295,6 +298,17 @@ export function useProgramMetronome(program: Program | null): UseProgramMetronom
       timerRef.current = null;
     }
   }, []);
+
+  // バックグラウンド再生OFF時: バックグラウンドに移ったら停止
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'background' && !settings?.backgroundPlayback && isPlayingRef.current) {
+        stop();
+      }
+    };
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, [settings?.backgroundPlayback, stop]);
 
   // トグル
   const toggle = useCallback(() => {

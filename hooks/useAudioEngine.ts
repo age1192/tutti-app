@@ -417,7 +417,58 @@ export function useAudioEngine() {
   );
 
   /**
-   * 分割音（サブディビジョン）を再生
+   * 分割音を指定時刻にスケジュール（Web Audio APIの精密タイミング、setTimeoutより確実）
+   * @param scheduledTime - 再生時刻（ctx.currentTime と同じ単位・秒）
+   * @param subdivisionType - 分割タイプ
+   * @param isFirstOfBeat - 拍頭かどうか
+   * @param volume - 音量
+   * @param tone - 音色
+   */
+  const scheduleSubdivisionClickAt = useCallback(
+    (scheduledTime: number, subdivisionType: string, isFirstOfBeat: boolean, volume: number, tone: MetronomeToneType) => {
+      const ctx = _sharedCtx;
+      const masterGain = _sharedMasterGain;
+      if (!ctx || !masterGain || ctx.state === 'closed') return;
+
+      let frequency: number;
+      let duration: number;
+      switch (subdivisionType) {
+        case 'eighth': frequency = 600; duration = 0.025; break;
+        case 'triplet': frequency = 500; duration = 0.02; break;
+        case 'sixteenth': frequency = 400; duration = 0.015; break;
+        default: frequency = 800; duration = 0.03;
+      }
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+
+      if (tone === 'wood') {
+        osc.type = 'sine';
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 1500;
+        filter.Q.value = 1;
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(masterGain);
+      } else {
+        osc.type = tone === 'hard' ? 'square' : 'sine';
+        osc.connect(gain);
+        gain.connect(masterGain);
+      }
+      osc.frequency.value = frequency;
+      gain.gain.setValueAtTime(0, scheduledTime);
+      gain.gain.linearRampToValueAtTime(volume, scheduledTime + 0.001);
+      gain.gain.linearRampToValueAtTime(0, scheduledTime + duration);
+      osc.start(scheduledTime);
+      osc.stop(scheduledTime + duration + 0.01);
+    },
+    []
+  );
+
+  /**
+   * 分割音（サブディビジョン）を再生（即時）
    * @param subdivisionType - 分割タイプ（'quarter' | 'eighth' | 'triplet' | 'sixteenth'）
    * @param isFirstOfBeat - 拍の最初の音かどうか（参考情報として受け取るが、スキップはしない）
    * @param volume - 音量（0.0 - 1.0）
@@ -1242,6 +1293,7 @@ export function useAudioEngine() {
     playTone,
     playClick,
     playSubdivisionClick,
+    scheduleSubdivisionClickAt,
     startNote,
     stopNote,
     setNoteVolume,

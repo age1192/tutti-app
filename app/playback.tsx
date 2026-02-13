@@ -3,7 +3,7 @@
  * 入力したコードをテンポに沿って再生する機能
  * アイディアルプロ風の小節ごとのコード進行機能
  */
-import { View, Text, StyleSheet, Pressable, StatusBar, ScrollView, Dimensions, Modal, Animated, TextInput, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, StatusBar, ScrollView, Dimensions, Modal, Animated, TextInput, Alert, Platform, AppState, AppStateStatus } from 'react-native';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +17,7 @@ try {
 }
 import { colors, typography, spacing } from '../styles';
 import { useMetronomeStore } from '../stores/useMetronomeStore';
+import { useSettingsStore } from '../stores/useSettingsStore';
 import { usePresetStore } from '../stores/usePresetStore';
 import { useAudioEngine } from '../hooks';
 import { getEqualTemperamentFrequency } from '../utils/pitchUtils';
@@ -337,6 +338,7 @@ function VoicingEditorModal({ visible, measure, onSave, onCancel, startNote, sto
 export default function PlaybackScreen() {
   const insets = useSafeAreaInsets();
   const { tempo: metronomeTempo, timeSignature: metronomeTimeSignature, setTimeSignature } = useMetronomeStore();
+  const { settings } = useSettingsStore();
   const { startNote, stopNote, stopAllNotes, playClick, resumeAudioContextSync } = useAudioEngine();
   const [dimensions, setDimensions] = useState(Dimensions.get('window'));
   
@@ -396,6 +398,17 @@ export default function PlaybackScreen() {
     
     return screenHeight - headerHeight - controlsHeight - statusHeight - tabBarHeight - padding - insets.top;
   }, [dimensions.height, insets.top]);
+
+  // バックグラウンド再生OFF時: バックグラウンドに移ったら停止
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'background' && !settings?.backgroundPlayback && isPlaying) {
+        setIsPlaying(false);
+      }
+    };
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, [settings?.backgroundPlayback, isPlaying]);
 
   // 画面に入った時に停止
   useFocusEffect(
