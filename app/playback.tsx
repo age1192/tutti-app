@@ -234,6 +234,7 @@ function VoicingEditorModal({ visible, measure, onSave, onCancel, startNote, sto
       animationType="fade"
       onRequestClose={handleCancel}
       presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+      supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
     >
       <View style={styles.modalOverlay}>
         <ScrollView
@@ -1504,6 +1505,7 @@ export default function PlaybackScreen() {
         onRequestClose={() => setSelectingMeasureId(null)}
         hardwareAccelerated={false}
         presentationStyle="overFullScreen"
+        supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { 
@@ -1563,6 +1565,7 @@ export default function PlaybackScreen() {
         transparent
         animationType="none"
         presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+        supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.presetSaveModalContent}>
@@ -1611,6 +1614,7 @@ export default function PlaybackScreen() {
         animationType="fade"
         onRequestClose={() => setSettingsModalVisible(false)}
         presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+        supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
       >
         <View style={styles.settingsModalOverlay}>
           <Pressable

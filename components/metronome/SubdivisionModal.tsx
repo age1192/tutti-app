@@ -79,6 +79,7 @@ export function SubdivisionModal({
       visible={visible}
       transparent
       animationType="none"
+      supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
       onRequestClose={onClose}
       presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
     >

@@ -44,6 +44,7 @@ export const TimeSignatureSequenceEditor: React.FC<TimeSignatureSequenceEditorPr
       visible={visible}
       transparent
       animationType="fade"
+      supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
       presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
     >
       <View style={styles.overlay}>

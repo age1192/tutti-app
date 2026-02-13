@@ -253,6 +253,7 @@ export const QRCodeImportModal: React.FC<QRCodeImportModalProps> = ({
       transparent
       animationType="fade"
       presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+      supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
     >
       <Pressable style={styles.overlay} onPress={onClose} activeOpacity={1}>
         <Pressable style={styles.modal} onPress={() => {}} activeOpacity={1}>

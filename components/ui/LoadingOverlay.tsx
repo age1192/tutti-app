@@ -15,7 +15,12 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({
   message = '読み込み中...',
 }) => {
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
+    >
       <View style={styles.overlay}>
         <View style={styles.container}>
           <ActivityIndicator size="large" color={colors.accent.primary} />

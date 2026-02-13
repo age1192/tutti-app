@@ -67,6 +67,7 @@ export function TemplateSelector({ visible, onClose, onSelect }: TemplateSelecto
       visible={visible}
       transparent
       animationType={Platform.OS === 'ios' ? 'none' : 'fade'}
+      supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
       onRequestClose={onClose}
       presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
     >

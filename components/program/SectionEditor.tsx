@@ -146,6 +146,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
       transparent
       animationType="fade"
       presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+      supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
     >
       <View style={styles.overlay}>
         <View style={[styles.modal, isLandscape && styles.modalLandscape]}>

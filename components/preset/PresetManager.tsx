@@ -123,6 +123,7 @@ export function PresetManager({ visible, onClose, type, onSelect }: PresetManage
       visible={visible}
       transparent
       animationType={Platform.OS === 'ios' ? 'none' : 'fade'}
+      supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
       onRequestClose={onClose}
       presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
     >
