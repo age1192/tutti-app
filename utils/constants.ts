@@ -6,6 +6,32 @@ import { TimeSignature } from '../types';
 /** Appleガイドライン: 横画面時のノッチ回避用余白（左右のみ、44pt〜59pt推奨） */
 export const LANDSCAPE_SAFE_AREA_INSET = 44;
 
+// レスポンシブデザイン用ブレークポイント（横画面固定、iPad 13インチまで対応）
+// Chrome DevToolsで確認した値をここに反映してください
+export const BREAKPOINTS = {
+  sm: 400,   // 小型スマホ（iPhone SE等: 幅 < 400px）
+  md: 600,   // 中型スマホ（400px <= 幅 < 600px）
+  lg: 800,   // 大型スマホ/小型タブレット（600px <= 幅 < 800px）
+  xl: 1024,  // iPad Pro 12.9インチ（800px <= 幅 <= 1024px）
+} as const;
+
+// 画面サイズ判定ヘルパー
+export const getScreenSize = (width: number): 'sm' | 'md' | 'lg' | 'xl' => {
+  if (width < BREAKPOINTS.sm) return 'sm';
+  if (width < BREAKPOINTS.md) return 'md';
+  if (width < BREAKPOINTS.lg) return 'lg';
+  return 'xl';
+};
+
+// 画面サイズ判定ヘルパー（boolean版）
+export const isSmallScreen = (width: number): boolean => width < BREAKPOINTS.sm;
+export const isMediumScreen = (width: number): boolean => 
+  width >= BREAKPOINTS.sm && width < BREAKPOINTS.md;
+export const isLargeScreen = (width: number): boolean => 
+  width >= BREAKPOINTS.lg;
+export const isXLargeScreen = (width: number): boolean => 
+  width >= BREAKPOINTS.xl;
+
 // メトロノーム
 export const TEMPO_MIN = 20;
 export const TEMPO_MAX = 300;

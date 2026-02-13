@@ -525,7 +525,7 @@ export default function HarmonyScreen() {
         )}
       </View>
 
-      {/* メインエリア（flex:1で残りスペースを使用、overflow:hiddenで確実にはみ出さない） */}
+      {/* メインエリア（flex:1で残りスペースを使用、左端から表示） */}
       <View style={[
         styles.keyboardPanel, 
         isLandscape && styles.keyboardPanelLandscape,
@@ -635,7 +635,7 @@ const styles = StyleSheet.create({
   keyboardPanel: {
     flex: 1, // 残りのスペースを使用
     justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: 'flex-start', // 左端から表示（ドを絶対に表示）
     paddingHorizontal: spacing.sm,
     paddingTop: spacing.sm, // 上部の余白を増やす（modeBarとの被り防止）
     paddingBottom: Math.max(spacing.md, TAB_BAR_HEIGHT * 0.3), // タブバーとの被り防止（タブバー高さの30%以上の余白）

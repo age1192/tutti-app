@@ -278,6 +278,89 @@ export function useAudioEngine() {
     updateAudioMode();
   }, [settings.backgroundPlayback, audioState.isReady, loadSettings]);
 
+  // AudioContextの状態を同期的にチェック（高速パス: await不要）
+  const isAudioContextReadySync = useCallback((): boolean => {
+    if (!_sharedCtx || !_sharedMasterGain) return false;
+    const state = _sharedCtx.state;
+    return state === 'running' || state === 'suspended';
+  }, []);
+
+  // AudioContextとマスターGainNodeの状態を確認・修復する関数
+  // ※ 他の useCallback より先に定義する必要あり（TDZ 回避、Web で必須）
+  const ensureAudioContextReady = useCallback(async (): Promise<boolean> => {
+    // 高速パス: 既にrunning状態なら即座にtrue（ログも省略）
+    if (_sharedCtx && _sharedMasterGain && _sharedCtx.state === 'running') {
+      return true;
+    }
+
+    console.log('[Audio] ensureAudioContextReady called, _isInitializing:', _isInitializing, '_sharedCtx:', !!_sharedCtx, '_initPromise:', !!_initPromise);
+
+    // 初期化中の場合は完了を待つ（重要：最初にチェック）
+    if (_initPromise) {
+      try {
+        console.log('[Audio] Waiting for initialization to complete...');
+        await _initPromise;
+      } catch (e) {
+        console.warn('[Audio] Initialization failed:', e);
+        return false;
+      }
+    }
+
+    // 初期化がまだ開始されていない、またはctxがnullの場合は待機
+    if (!_sharedCtx) {
+      console.log('[Audio] Waiting for AudioContext to be created...');
+      let waited = 0;
+      while (!_sharedCtx && waited < 2000) {
+        if (_initPromise) {
+          try {
+            await _initPromise;
+            if (_sharedCtx) break;
+          } catch (e) {
+            console.warn('[Audio] Initialization failed:', e);
+            return false;
+          }
+        }
+        await new Promise(resolve => setTimeout(resolve, 50));
+        waited += 50;
+      }
+
+      if (!_sharedCtx) {
+        console.warn('[Audio] AudioContext is still null after waiting 2000ms');
+        return false;
+      }
+    }
+
+    const ctx = _sharedCtx;
+    if (!ctx || ctx.state === 'closed') {
+      console.warn('[Audio] AudioContext is null or closed');
+      return false;
+    }
+
+    // マスターGainNodeが存在しない場合は再作成
+    if (!_sharedMasterGain) {
+      try {
+        const masterGain = ctx.createGain();
+        masterGain.gain.value = 0.7;
+        masterGain.connect(ctx.destination);
+        _sharedMasterGain = masterGain;
+      } catch (e) {
+        console.error('[Audio] Failed to recreate masterGain:', e);
+        return false;
+      }
+    }
+
+    // AudioContextがsuspendedの場合は再開を試みる
+    if (ctx.state === 'suspended') {
+      try {
+        ctx.resume();
+      } catch (e) {
+        console.warn('[Audio] Failed to resume AudioContext:', e);
+      }
+    }
+
+    return true;
+  }, []);
+
   /**
    * トーンを再生（AudioContext使用）
    */
@@ -573,87 +656,125 @@ export function useAudioEngine() {
     }
   }, []);
 
-  // AudioContextの状態を同期的にチェック（高速パス: await不要）
-  const isAudioContextReadySync = useCallback((): boolean => {
-    if (!_sharedCtx || !_sharedMasterGain) return false;
-    const state = _sharedCtx.state;
-    return state === 'running' || state === 'suspended';
-  }, []);
+  /**
+   * 持続音を停止（即座に止める）
+   * ※ startNote より先に定義する必要あり（TDZ 回避、Web で必須）
+   */
+  const stopNote = useCallback(
+    (noteId: number) => {
+      const ctx = _sharedCtx;
+      if (!ctx || ctx.state === 'closed') return;
 
-  // AudioContextとマスターGainNodeの状態を確認・修復する関数
-  const ensureAudioContextReady = useCallback(async (): Promise<boolean> => {
-    // 高速パス: 既にrunning状態なら即座にtrue（ログも省略）
-    if (_sharedCtx && _sharedMasterGain && _sharedCtx.state === 'running') {
-      return true;
-    }
+      const oscillator = (ctx as any)[`__note_${noteId}`];
+      if (oscillator) {
+        const gainNode = (oscillator as any).__gainNode;
+        const currentTime = ctx.currentTime;
 
-    console.log('[Audio] ensureAudioContextReady called, _isInitializing:', _isInitializing, '_sharedCtx:', !!_sharedCtx, '_initPromise:', !!_initPromise);
-    
-    // 初期化中の場合は完了を待つ（重要：最初にチェック）
-    if (_initPromise) {
-      try {
-        console.log('[Audio] Waiting for initialization to complete...');
-        await _initPromise;
-      } catch (e) {
-        console.warn('[Audio] Initialization failed:', e);
-        return false;
-      }
-    }
+        // 短いリリース（0.05秒）で自然に減衰させてから停止
+        const releaseTime = 0.05;
+        const stopTime = currentTime + releaseTime + 0.01;
 
-    // 初期化がまだ開始されていない、またはctxがnullの場合は待機
-    if (!_sharedCtx) {
-      console.log('[Audio] Waiting for AudioContext to be created...');
-      let waited = 0;
-      while (!_sharedCtx && waited < 2000) {
-        if (_initPromise) {
+        if (gainNode) {
+          gainNode.gain.cancelScheduledValues(currentTime);
+          gainNode.gain.setValueAtTime(gainNode.gain.value, currentTime);
+          gainNode.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
+        }
+
+        // オルガンとオルガン2の倍音も短いリリースで停止
+        const harmonic2 = (oscillator as any).__harmonic2;
+        const gain2 = (oscillator as any).__gain2;
+        if (harmonic2 && gain2) {
+          gain2.gain.cancelScheduledValues(currentTime);
+          gain2.gain.setValueAtTime(gain2.gain.value, currentTime);
+          gain2.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
           try {
-            await _initPromise;
-            if (_sharedCtx) break;
+            harmonic2.stop(stopTime);
           } catch (e) {
-            console.warn('[Audio] Initialization failed:', e);
-            return false;
+            // 既に停止している場合は無視
           }
         }
-        await new Promise(resolve => setTimeout(resolve, 50));
-        waited += 50;
-      }
-      
-      if (!_sharedCtx) {
-        console.warn('[Audio] AudioContext is still null after waiting 2000ms');
-        return false;
-      }
-    }
 
-    const ctx = _sharedCtx;
-    if (!ctx || ctx.state === 'closed') {
-      console.warn('[Audio] AudioContext is null or closed');
-      return false;
-    }
+        const harmonic3 = (oscillator as any).__harmonic3;
+        const gain3 = (oscillator as any).__gain3;
+        if (harmonic3 && gain3) {
+          gain3.gain.cancelScheduledValues(currentTime);
+          gain3.gain.setValueAtTime(gain3.gain.value, currentTime);
+          gain3.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
+          try {
+            harmonic3.stop(stopTime);
+          } catch (e) {
+            // 既に停止している場合は無視
+          }
+        }
 
-    // マスターGainNodeが存在しない場合は再作成
-    if (!_sharedMasterGain) {
-      try {
-        const masterGain = ctx.createGain();
-        masterGain.gain.value = 0.7;
-        masterGain.connect(ctx.destination);
-        _sharedMasterGain = masterGain;
-      } catch (e) {
-        console.error('[Audio] Failed to recreate masterGain:', e);
-        return false;
+        // オルガン2の4倍音も短いリリースで停止
+        const harmonic4 = (oscillator as any).__harmonic4;
+        const gain4 = (oscillator as any).__gain4;
+        if (harmonic4 && gain4) {
+          gain4.gain.cancelScheduledValues(currentTime);
+          gain4.gain.setValueAtTime(gain4.gain.value, currentTime);
+          gain4.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
+          try {
+            harmonic4.stop(stopTime);
+          } catch (e) {
+            // 既に停止している場合は無視
+          }
+        }
+
+        // オルガン2の5倍音も短いリリースで停止
+        const harmonic5 = (oscillator as any).__harmonic5;
+        const gain5 = (oscillator as any).__gain5;
+        if (harmonic5 && gain5) {
+          gain5.gain.cancelScheduledValues(currentTime);
+          gain5.gain.setValueAtTime(gain5.gain.value, currentTime);
+          gain5.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
+          try {
+            harmonic5.stop(stopTime);
+          } catch (e) {
+            // 既に停止している場合は無視
+          }
+        }
+
+        // オルガン2の6倍音も短いリリースで停止
+        const harmonic6 = (oscillator as any).__harmonic6;
+        const gain6 = (oscillator as any).__gain6;
+        if (harmonic6 && gain6) {
+          gain6.gain.cancelScheduledValues(currentTime);
+          gain6.gain.setValueAtTime(gain6.gain.value, currentTime);
+          gain6.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
+          try {
+            harmonic6.stop(stopTime);
+          } catch (e) {
+            // 既に停止している場合は無視
+          }
+        }
+
+        // オルガン2のノイズ成分も短いリリースで停止
+        const noiseSource = (oscillator as any).__noiseSource;
+        const noiseGain = (oscillator as any).__noiseGain;
+        if (noiseSource && noiseGain) {
+          noiseGain.gain.cancelScheduledValues(currentTime);
+          noiseGain.gain.setValueAtTime(noiseGain.gain.value, currentTime);
+          noiseGain.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
+          try {
+            noiseSource.stop(stopTime);
+          } catch (e) {
+            // 既に停止している場合は無視
+          }
+        }
+
+        // リリース後に停止
+        try {
+          oscillator.stop(stopTime);
+        } catch (e) {
+          // 既に停止している場合は無視
+        }
+        delete (ctx as any)[`__note_${noteId}`];
+        _sharedActiveNoteCount = Math.max(0, _sharedActiveNoteCount - 1);
       }
-    }
-
-    // AudioContextがsuspendedの場合は再開を試みる
-    if (ctx.state === 'suspended') {
-      try {
-        ctx.resume();
-      } catch (e) {
-        console.warn('[Audio] Failed to resume AudioContext:', e);
-      }
-    }
-
-    return true;
-  }, []);
+    },
+    []
+  );
 
   const startNote = useCallback(
     async (noteId: number, frequency: number, volume: number = 0.3, tone: ToneType = 'organ') => {
@@ -1029,125 +1150,6 @@ export function useAudioEngine() {
       }
     },
     [audioState.isAudioSupported]
-  );
-
-  /**
-   * 持続音を停止（即座に止める）
-   */
-  const stopNote = useCallback(
-    (noteId: number) => {
-      const ctx = _sharedCtx;
-      if (!ctx || ctx.state === 'closed') return;
-
-      const oscillator = (ctx as any)[`__note_${noteId}`];
-      if (oscillator) {
-        const gainNode = (oscillator as any).__gainNode;
-        const currentTime = ctx.currentTime;
-
-        // 短いリリース（0.05秒）で自然に減衰させてから停止
-        const releaseTime = 0.05;
-        const stopTime = currentTime + releaseTime + 0.01;
-
-        if (gainNode) {
-          gainNode.gain.cancelScheduledValues(currentTime);
-          gainNode.gain.setValueAtTime(gainNode.gain.value, currentTime);
-          gainNode.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
-        }
-
-        // オルガンとオルガン2の倍音も短いリリースで停止
-        const harmonic2 = (oscillator as any).__harmonic2;
-        const gain2 = (oscillator as any).__gain2;
-        if (harmonic2 && gain2) {
-          gain2.gain.cancelScheduledValues(currentTime);
-          gain2.gain.setValueAtTime(gain2.gain.value, currentTime);
-          gain2.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
-          try {
-            harmonic2.stop(stopTime);
-          } catch (e) {
-            // 既に停止している場合は無視
-          }
-        }
-
-        const harmonic3 = (oscillator as any).__harmonic3;
-        const gain3 = (oscillator as any).__gain3;
-        if (harmonic3 && gain3) {
-          gain3.gain.cancelScheduledValues(currentTime);
-          gain3.gain.setValueAtTime(gain3.gain.value, currentTime);
-          gain3.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
-          try {
-            harmonic3.stop(stopTime);
-          } catch (e) {
-            // 既に停止している場合は無視
-          }
-        }
-
-        // オルガン2の4倍音も短いリリースで停止
-        const harmonic4 = (oscillator as any).__harmonic4;
-        const gain4 = (oscillator as any).__gain4;
-        if (harmonic4 && gain4) {
-          gain4.gain.cancelScheduledValues(currentTime);
-          gain4.gain.setValueAtTime(gain4.gain.value, currentTime);
-          gain4.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
-          try {
-            harmonic4.stop(stopTime);
-          } catch (e) {
-            // 既に停止している場合は無視
-          }
-        }
-
-        // オルガン2の5倍音も短いリリースで停止
-        const harmonic5 = (oscillator as any).__harmonic5;
-        const gain5 = (oscillator as any).__gain5;
-        if (harmonic5 && gain5) {
-          gain5.gain.cancelScheduledValues(currentTime);
-          gain5.gain.setValueAtTime(gain5.gain.value, currentTime);
-          gain5.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
-          try {
-            harmonic5.stop(stopTime);
-          } catch (e) {
-            // 既に停止している場合は無視
-          }
-        }
-
-        // オルガン2の6倍音も短いリリースで停止
-        const harmonic6 = (oscillator as any).__harmonic6;
-        const gain6 = (oscillator as any).__gain6;
-        if (harmonic6 && gain6) {
-          gain6.gain.cancelScheduledValues(currentTime);
-          gain6.gain.setValueAtTime(gain6.gain.value, currentTime);
-          gain6.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
-          try {
-            harmonic6.stop(stopTime);
-          } catch (e) {
-            // 既に停止している場合は無視
-          }
-        }
-
-        // オルガン2のノイズ成分も短いリリースで停止
-        const noiseSource = (oscillator as any).__noiseSource;
-        const noiseGain = (oscillator as any).__noiseGain;
-        if (noiseSource && noiseGain) {
-          noiseGain.gain.cancelScheduledValues(currentTime);
-          noiseGain.gain.setValueAtTime(noiseGain.gain.value, currentTime);
-          noiseGain.gain.linearRampToValueAtTime(0, currentTime + releaseTime);
-          try {
-            noiseSource.stop(stopTime);
-          } catch (e) {
-            // 既に停止している場合は無視
-          }
-        }
-
-        // リリース後に停止
-        try {
-          oscillator.stop(stopTime);
-        } catch (e) {
-          // 既に停止している場合は無視
-        }
-        delete (ctx as any)[`__note_${noteId}`];
-        _sharedActiveNoteCount = Math.max(0, _sharedActiveNoteCount - 1);
-      }
-    },
-    []
   );
 
   /**

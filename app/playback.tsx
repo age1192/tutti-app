@@ -4,6 +4,7 @@
  * アイディアルプロ風の小節ごとのコード進行機能
  */
 import { View, Text, StyleSheet, Pressable, StatusBar, ScrollView, Dimensions, Modal, Animated, TextInput, Alert, Platform, AppState, AppStateStatus, KeyboardAvoidingView, Keyboard } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { FadeModal } from '../components/ui/FadeModal';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useFocusEffect } from 'expo-router';
@@ -1190,7 +1191,7 @@ export default function PlaybackScreen() {
             <Text style={styles.subtitle}>
               {tempo} BPM ({timeSignature.numerator}/{timeSignature.denominator})
             </Text>
-            <Text style={styles.voicingHint}>長押しでボイシング編集</Text>
+            <Text style={styles.voicingHint}>　長押しでボイシング編集</Text>
           </View>
           <View style={styles.headerRight}>
             <View style={styles.transposeRow}>
@@ -1245,7 +1246,22 @@ export default function PlaybackScreen() {
               style={styles.settingsButton}
               onPress={() => setSettingsModalVisible(true)}
             >
-              <Text style={styles.settingsButtonText}>⚙</Text>
+              <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+                <Path
+                  d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"
+                  stroke={colors.text.secondary}
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <Path
+                  d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+                  stroke={colors.text.secondary}
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </Svg>
             </Pressable>
           </View>
         </View>
@@ -1788,12 +1804,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerLeft: {
-    flexDirection: 'column',
-    gap: spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    flexWrap: 'wrap',
   },
   voicingHint: {
     ...typography.body,
-    fontSize: 10,
+    fontSize: 12,
     color: colors.text.muted,
   },
   headerRight: {
@@ -1803,7 +1821,8 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     ...typography.body,
-    fontSize: 12,
+    fontSize: 14,
+    fontWeight: '600',
     color: colors.text.secondary,
   },
   transposeRow: {
@@ -1869,18 +1888,14 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   settingsButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: colors.background.tertiary,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border.default,
-  },
-  settingsButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
   },
   settingsPanelHeader: {
     flexDirection: 'row',

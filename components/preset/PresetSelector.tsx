@@ -5,6 +5,7 @@ import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, Alert, Platform, KeyboardAvoidingView, Keyboard } from 'react-native';
 import { FadeModal } from '../ui/FadeModal';
 import { colors, typography, spacing } from '../../styles';
+import { BREAKPOINTS } from '../../utils/constants';
 import { PresetManager } from './PresetManager';
 import { usePresetStore } from '../../stores/usePresetStore';
 import { useMetronomeStore } from '../../stores/useMetronomeStore';
@@ -22,8 +23,8 @@ export function PresetSelector({ type, screenWidth = 800 }: PresetSelectorProps)
 
   // 画面幅に応じた動的スタイル計算
   const dynamicStyles = useMemo(() => {
-    const isSmallScreen = screenWidth < 400;
-    const isLargeScreen = screenWidth >= 800;
+    const isSmallScreen = screenWidth < BREAKPOINTS.sm;
+    const isLargeScreen = screenWidth >= BREAKPOINTS.lg;
     
     return {
       button: {
@@ -242,8 +243,9 @@ export function PresetSelector({ type, screenWidth = 800 }: PresetSelectorProps)
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    gap: spacing.xs,
+    gap: spacing.sm,
     flexShrink: 1,
+    alignItems: 'center',
   },
   button: {
     backgroundColor: colors.accent.primary,

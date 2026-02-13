@@ -19,7 +19,7 @@ import {
   BeatPulse,
 } from '../components/metronome';
 import { PresetSelector } from '../components/preset';
-import { TIME_SIGNATURES, TEMPO_MIN, TEMPO_MAX, TEMPO_DEFAULT, LANDSCAPE_SAFE_AREA_INSET } from '../utils/constants';
+import { TIME_SIGNATURES, TEMPO_MIN, TEMPO_MAX, TEMPO_DEFAULT, LANDSCAPE_SAFE_AREA_INSET, BREAKPOINTS } from '../utils/constants';
 import { TimeSignature, SubdivisionType, SubdivisionSettings, MetronomeToneType } from '../types';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useMetronomeStore } from '../stores/useMetronomeStore';
@@ -94,10 +94,10 @@ export default function MetronomeScreen() {
 
   // 画面幅に応じた動的スタイル計算
   const dynamicStyles = useMemo(() => {
-    // 小さい画面（iPhone SE等: 幅 < 400px）
-    const isSmallScreen = screenWidth < 400;
-    // 大きい画面（タブレット等: 幅 >= 800px）
-    const isLargeScreen = screenWidth >= 800;
+    // 小さい画面（iPhone SE等: 幅 < BREAKPOINTS.sm）
+    const isSmallScreen = screenWidth < BREAKPOINTS.sm;
+    // 大きい画面（タブレット等: 幅 >= BREAKPOINTS.lg）
+    const isLargeScreen = screenWidth >= BREAKPOINTS.lg;
     
     return {
       controlButton: {
